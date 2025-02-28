@@ -56,13 +56,32 @@ def login():
     if username in users and users[username]['password'] == password:
         token = jwt.encode({
             'user': username,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
+            'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=2)
         }, SECRET_KEY, algorithm='HS256')
         # Ensure token is a string (handles PyJWT 1.x and 2.x compatibility)
         if isinstance(token, bytes):
             token = token.decode('utf-8')
         return jsonify({'token': token})
     return jsonify({'message': 'Invalid credentials'}), 401
+
+@app.route('/refresh_token', methods=['POST'])
+@protected
+def refresh_token():
+    # Get the current user from the token
+    username = g.user_data['user']
+    
+    # Generate a new token
+    new_token = jwt.encode({
+        'user': username,
+        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=2)
+    }, SECRET_KEY, algorithm='HS256')
+    
+    # Ensure new_token is a string
+    if isinstance(new_token, bytes):
+        new_token = new_token.decode('utf-8')
+    
+    return jsonify({'token': new_token})
+
 
 # Protected dashboard data endpoint
 @app.route('/dashboard_data', methods=['GET'])
