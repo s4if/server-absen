@@ -1,10 +1,49 @@
-.idea/
-.vscode/
-.venv*/
-venv*/
+# Bytecode and system files
 __pycache__/
-dist/
-.coverage*
-htmlcov/
-.tox/
-docs/_build/
+*.py[cod]
+*$PYTHONCACHE
+
+# Virtual environment
+venv/
+env/
+.venv/
+.conda/
+*.env
+*.venv
+
+# Package manager files not excluded
+
+# Logs and debugging
+*.log
+logs/
+debug.log
+
+# IDE & Editor settings
+.vscode/
+.idea/
+*.sublime-workspace
+
+# Database files
+*.sqlite3
+*.db
+instance/
+
+# Flask & SQLAlchemy specific
+.mypy_cache/
+*.migrations/
+migrations/
+alembic/versions/
+
+# Environment variables & secrets
+.env
+.env.local
+.env.*.backup
+secrets.json
+
+# Docker
+*.dockerignore
+docker-compose.override.yml
+
+# MacOS & Linux
+.DS_Store
+*.swp
