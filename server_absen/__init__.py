@@ -4,21 +4,22 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
-from flask.cli import with_appcontext
+from flask.cli import with_appcontext, click
 import jwt
 import datetime
+from .config import Config
+from .model import db, User, Attendance, AttendanceLocation
+from .seeders import seed_all
 
 app = Flask(__name__)
+app.config.from_object(Config)
+
+# Initialize extensions
+db.init_app(app)
+migrate = Migrate(app, db)
 
 # Secret key for JWT
 SECRET_KEY = "mysecretkey"
-
-# Hardcoded users with credentials and dashboard messages
-users = {
-    "user": {"password": "default", "message": "Hi normal user"},
-    "admin": {"password": "default", "message": "Hi first level admin"},
-    "superadmin": {"password": "default", "message": "Hi root"}
-}
 
 # Decorator to protect routes
 def protected(func):
@@ -53,7 +54,8 @@ def login():
     username = data['username']
     password = data['password']
 
-    if username in users and users[username]['password'] == password:
+    user = User.query.filter_by(username=username).first()
+    if user and user.check_password(password):
         token = jwt.encode({
             'user': username,
             'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=2)
@@ -82,14 +84,18 @@ def refresh_token():
     
     return jsonify({'token': new_token})
 
-
 # Protected dashboard data endpoint
 @app.route('/dashboard_data', methods=['GET'])
 @protected
 def dashboard_data():
     username = g.user_data['user']
-    message = users.get(username, {}).get('message', 'Unknown user')
-    return jsonify({'message': message})
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+    return jsonify({
+        'message': f'Welcome {user.full_name}',
+        'role': user.role
+    })
 
 @app.route('/cek_login', methods=['GET'])
 @protected
@@ -121,9 +127,15 @@ def get_permitted_locations():
             'longitude': '110.2397089624626',
             # depan TU SMKIT
           },
-        ] # bisa jadi error dari sini
+        ]
     return jsonify(data)
 
+# Add CLI command for seeding
+@app.cli.command('seed-db')
+def seed_db_command():
+    """Seed the database with initial data."""
+    seed_all()
+    click.echo('Database seeded successfully!')
 
 if __name__ == '__main__':
     app.run(debug=True)
