@@ -8,7 +8,7 @@ from flask.cli import with_appcontext, click
 import jwt
 import datetime
 from .config import Config
-from .model import db, User, Attendance, AttendanceLocation
+from .model import db, User, Attendance, AttendanceLocation, Admin
 from .seeders import seed_all
 
 app = Flask(__name__)
@@ -136,6 +136,34 @@ def seed_db_command():
     """Seed the database with initial data."""
     seed_all()
     click.echo('Database seeded successfully!')
+
+@app.cli.command('reset-admin-password')
+@click.option('--username', prompt='Admin username', default='admin')
+@click.option('--password', prompt='New admin password', confirmation_prompt=True, hide_input=True)
+def reset_admin_password(username, password):
+    """Reset admin password."""
+    admin = Admin.query.filter_by(username=username).first()
+    if admin is None:
+        click.echo(f'Admin user {username} not found')
+        return
+    admin.set_password(password)
+    db.session.commit()
+    click.echo(f'Admin password for user {username} reset successfully!')
+
+@app.cli.command('reset-user-password')
+@click.option('--username', prompt='User username', default='user')
+@click.option('--password', prompt='New user password', confirmation_prompt=True, hide_input=True)
+def reset_user_password(username, password):
+    """Reset regular user password."""
+    user = User.query.filter_by(username=username).first()
+    if user is None:
+        click.echo(f'User {username} not found')
+        return
+    user.set_password(password)
+    db.session.commit()
+    click.echo(f'User password for user {username} reset successfully!')
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
