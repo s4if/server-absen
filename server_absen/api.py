@@ -2,13 +2,16 @@ from flask import Blueprint, request, jsonify, g, current_app
 from functools import wraps
 import jwt # from PyJWT!
 import datetime
-from .model import AttendanceLocation, User
+from .model import AttendanceLocation, User, Attendance
+import pytz
 
 bp = Blueprint('api', __name__, url_prefix='/api')
+# TODO: API diberi rate limit
 
-def generate_token(username) -> str:
+def generate_token(username, device_id) -> str:
     token = jwt.encode({
         'username': username,
+        'device_id': device_id,
         'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=2)
     }, current_app.config['SECRET_KEY'], algorithm='HS256')
     # Ensure token is a string (handles PyJWT 1.x and 2.x compatibility)
@@ -32,6 +35,8 @@ def protected(func):
         token = parts[1]
         try:
             data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+            # untuk pertimbangan, username dicocokan ke device_id atau tidak.
+            # kalau dicocokkan harus request ke database. plusnya lebih aman, minusnya lebih lambat.
             g.user_data = data  # Store decoded token data in g
             return func(*args, **kwargs)
         except jwt.ExpiredSignatureError:
@@ -44,15 +49,18 @@ def protected(func):
 @bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
-    if not data or 'username' not in data or 'password' not in data:
-        return jsonify({'message': 'Missing username or password'}), 400
+
+    # Ensure username, password, and device_id are provided
+    if not all(k in data for k in ('username', 'password', 'device_id')):
+        return jsonify({'error': 'Missing credentials'}), 400
 
     username = data['username']
     password = data['password']
+    device_id = data['device_id']
 
     user = User.query.filter_by(username=username).first()
     if user and user.check_password(password):
-        token = generate_token(username)
+        token = generate_token(username, device_id)
         return jsonify({'token': token})
     return jsonify({'message': 'Invalid credentials'}), 401
 
@@ -61,9 +69,10 @@ def login():
 def refresh_token():
     # Get the current user from the token
     username = g.user_data['user']
+    device_id = g.user_data['device_id']
     
     # Generate a new token
-    new_token = generate_token(username)
+    new_token = generate_token(username, device_id)
     
     return jsonify({'token': new_token})
 
@@ -99,3 +108,46 @@ def get_permitted_locations():
         } for location in locations
     ]
     return jsonify(data)
+
+@bp.route('/absen_harian', methods=['POST'])
+@protected
+def absen_harian():
+    # payload: location_id, attendance_type
+    data = request.get_json()
+    location_id = data.get('location_id')
+    if not location_id:
+        return jsonify({'message': 'location_id is required'}), 400
+    
+    username = g.user_data['username']
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+    
+    jakarta_tz = pytz.timezone('Asia/Jakarta')
+    date = datetime.datetime.now(jakarta_tz).date()
+    attendance = Attendance.query.filter_by(user_id=user.id, attendance_date=date).first()
+    if not attendance :
+        if data.get('attendance_type') == 'check_out':
+            return jsonify({'message': 'Not yet checked in'}), 400
+        
+        attendance = Attendance(
+            user_id=user.id,
+            attendance_date=date,
+            check_in=datetime.datetime.now(jakarta_tz),
+            check_in_location_id=location_id
+        )
+        current_app.db.session.add(attendance)
+        current_app.db.session.commit()
+        return jsonify({'message': 'Check in success'}), 200
+    
+    else:
+        if data.get('attendance_type') == 'check_in':
+            return jsonify({'message': 'Already checked in'}), 400
+        
+        # check out bisa diperbarui tanpa cek
+        attendance.check_out = datetime.datetime.now(jakarta_tz)
+        attendance.check_out_location_id = location_id
+        current_app.db.session.commit()
+        return jsonify({'message': 'Check out success'}), 200
+
+# TODO: Absen Khusus
