@@ -1,10 +1,20 @@
 from flask import Blueprint, request, jsonify, g, current_app
 from functools import wraps
-import jwt
+import jwt # from PyJWT!
 import datetime
 from .model import AttendanceLocation, User
 
 bp = Blueprint('api', __name__, url_prefix='/api')
+
+def generate_token(username) -> str:
+    token = jwt.encode({
+        'username': username,
+        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=2)
+    }, current_app.config['SECRET_KEY'], algorithm='HS256')
+    # Ensure token is a string (handles PyJWT 1.x and 2.x compatibility)
+    if isinstance(token, bytes):
+        token = token.decode('utf-8')
+    return token
 
 # Add your API routes here
 # Decorator to protect routes
@@ -42,13 +52,7 @@ def login():
 
     user = User.query.filter_by(username=username).first()
     if user and user.check_password(password):
-        token = jwt.encode({
-            'user': username,
-            'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=2)
-        }, current_app.config['SECRET_KEY'], algorithm='HS256')
-        # Ensure token is a string (handles PyJWT 1.x and 2.x compatibility)
-        if isinstance(token, bytes):
-            token = token.decode('utf-8')
+        token = generate_token(username)
         return jsonify({'token': token})
     return jsonify({'message': 'Invalid credentials'}), 401
 
@@ -59,14 +63,7 @@ def refresh_token():
     username = g.user_data['user']
     
     # Generate a new token
-    new_token = jwt.encode({
-        'user': username,
-        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=2)
-    }, current_app.config['SECRET_KEY'], algorithm='HS256')
-    
-    # Ensure new_token is a string
-    if isinstance(new_token, bytes):
-        new_token = new_token.decode('utf-8')
+    new_token = generate_token(username)
     
     return jsonify({'token': new_token})
 
@@ -74,13 +71,13 @@ def refresh_token():
 @bp.route('/dashboard_data', methods=['GET'])
 @protected
 def dashboard_data():
-    username = g.user_data['user']
+    username = g.user_data['username']
     user = User.query.filter_by(username=username).first()
     if not user:
         return jsonify({'message': 'User not found'}), 404
     return jsonify({
         'message': f'Welcome {user.full_name}',
-        'role': user.role
+        'role': user.division
     })
 
 @bp.route('/cek_login', methods=['GET'])
