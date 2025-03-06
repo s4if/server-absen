@@ -1,6 +1,10 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import CheckConstraint
 from werkzeug.security import generate_password_hash, check_password_hash
+import pytz
+
+# Note: Timezone is hardcoded to Asia/Jakarta
 
 db = SQLAlchemy()
 
@@ -13,11 +17,11 @@ class Admin(db.Model):
     full_name = db.Column(db.String(120))
     
     # Use timezone-aware Asia/Jakarta timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone(timedelta(hours=7))))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')))
     updated_at = db.Column(
         db.DateTime,
-        default=lambda: datetime.now(timezone(timedelta(hours=7))),
-        onupdate=lambda: datetime.now(timezone(timedelta(hours=7)))
+        default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')),
+        onupdate=lambda: datetime.now(pytz.timezone('Asia/Jakarta'))
     )
     
     def set_password(self, password):
@@ -40,11 +44,11 @@ class User(db.Model): # untuk guru pakai ini
     full_name = db.Column(db.String(120))
     
     # Use timezone-aware Asia/Jakarta timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone(timedelta(hours=7))))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')))
     updated_at = db.Column(
         db.DateTime,
-        default=lambda: datetime.now(timezone(timedelta(hours=7))),
-        onupdate=lambda: datetime.now(timezone(timedelta(hours=7)))
+        default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')),
+        onupdate=lambda: datetime.now(pytz.timezone('Asia/Jakarta'))
     )
     
     attendances = db.relationship('Attendance', backref='user', lazy=True)
@@ -68,7 +72,7 @@ class AttendanceLocation(db.Model):
     latitude = db.Column(db.String(20), nullable=False)
     longitude = db.Column(db.String(20), nullable=False)
 
-
+# absensi kerja harian
 class Attendance(db.Model):
     __tablename__ = 'attendances'
 
@@ -88,12 +92,92 @@ class Attendance(db.Model):
     notes = db.Column(db.Text)
 
     # Use timezone-aware Asia/Jakarta timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone(timedelta(hours=7))))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')))
     updated_at = db.Column(
         db.DateTime,
-        default=lambda: datetime.now(timezone(timedelta(hours=7))),
-        onupdate=lambda: datetime.now(timezone(timedelta(hours=7)))
+        default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')),
+        onupdate=lambda: datetime.now(pytz.timezone('Asia/Jakarta'))
     )
 
     def __repr__(self):
         return f'<Attendance {self.user_id} {self.check_in.date()}>'
+
+"""
+Agenda ada 2, rutin dan tidak rutin
+Rutin: berulang, bisa setiap hari, minggu, bulan, tahun
+Tidak rutin: hanya sekali
+Yang mengatur adalah admin
+Agenda non-rutin akan muncul 2 hari sebelum batas waktu!
+"""
+class Agenda(db.Model):
+    __tablename__ = 'agendas'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    type = db.Column(db.Enum('routine', 'non_routine'), nullable=False)
+    # for non-routine agenda
+    start_date = db.Column(db.DateTime, nullable=True)
+    end_date = db.Column(db.DateTime, nullable=True)
+    deadline_date = db.Column(db.DateTime, nullable=True)
+    reminder_offset = db.Column(db.Integer, default=2) # in days
+
+    # Lokasi hanya untuk agenda non-rutin, atau kalau agenda rutin dipisah, bisa juga
+    # misal untuk agenda piket apel SMP dan SMA berbeda lokasi (sementara ini belum dipakai untuk rutin)
+    location = db.Column(db.String(120), nullable=True)
+    latitude = db.Column(db.Numeric(precision=9, scale=6), nullable=True)
+    longitude = db.Column(db.Numeric(precision=9, scale=6), nullable=True)
+    
+    __table_args__ = (
+        CheckConstraint('latitude BETWEEN -90 AND 90', name='check_latitude'),
+        CheckConstraint('longitude BETWEEN -180 AND 180', name='check_longitude'),
+    )
+
+    # for routine agenda
+    frequency = db.Column(db.String(30), nullable=True)  # frequency tulis manual bahasa indonesia
+    # contoh: 'seminggu sekali', 'dua kali seminggu', 'tiap dua minggu' 'sebulan sekali', dll
+
+    created_by = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=False)
+    # Use timezone-aware Asia/Jakarta timestamps
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')))
+    updated_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')),
+        onupdate=lambda: datetime.now(pytz.timezone('Asia/Jakarta'))
+    )
+
+    def __repr__(self):
+        return f'<Agenda {self.title}>'
+    
+    def get_reminder_date(self):
+        return self.deadline_date - timedelta(days=self.reminder_offset)
+
+# absen agenda 
+class AgendaAttendee(db.Model):
+    __tablename__ = 'agenda_attendees'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    agenda_id = db.Column(db.Integer, db.ForeignKey('agendas.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    attendance_time = db.Column(db.DateTime, nullable=False)
+    
+    # Menggunakan Numeric type dengan presisi 9 digit (6 di belakang koma)
+    latitude = db.Column(db.Numeric(precision=9, scale=6), nullable=False)
+    longitude = db.Column(db.Numeric(precision=9, scale=6), nullable=False)
+    
+    __table_args__ = (
+        CheckConstraint('latitude BETWEEN -90 AND 90', name='check_latitude'),
+        CheckConstraint('longitude BETWEEN -180 AND 180', name='check_longitude'),
+    )
+
+    notes = db.Column(db.Text, nullable=True)
+    
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')))
+    updated_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')),
+        onupdate=lambda: datetime.now(pytz.timezone('Asia/Jakarta'))
+    )
+    
+    def __repr__(self):
+        return f'<AgendaAttendee {self.agenda_id} {self.user_id}>'
