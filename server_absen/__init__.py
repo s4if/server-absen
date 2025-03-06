@@ -15,7 +15,7 @@ migrate = Migrate(app, db)
 
 @app.route('/test_layout')
 def test_layout():
-    return render_template('test.jinja')
+    return render_template('login.jinja')
 
 # Add CLI command for seeding
 @app.cli.command('seed-db')

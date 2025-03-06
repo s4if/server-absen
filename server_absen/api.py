@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, g, current_app
 from functools import wraps
 import jwt # from PyJWT!
 import datetime
-from .model import AttendanceLocation, User, Attendance
+from .model import AttendanceLocation, User, Attendance, Agenda, AgendaAttendee
 import pytz
 
 bp = Blueprint('api', __name__, url_prefix='/api')
@@ -109,9 +109,9 @@ def get_permitted_locations():
     ]
     return jsonify(data)
 
-@bp.route('/absen_harian', methods=['POST'])
+@bp.route('/daily_attendance', methods=['POST'])
 @protected
-def absen_harian():
+def daily_attendance():
     # payload: location_id, attendance_type
     data = request.get_json()
     location_id = data.get('location_id')
@@ -126,7 +126,7 @@ def absen_harian():
     jakarta_tz = pytz.timezone('Asia/Jakarta')
     date = datetime.datetime.now(jakarta_tz).date()
     attendance = Attendance.query.filter_by(user_id=user.id, attendance_date=date).first()
-    if not attendance :
+    if not attendance:
         if data.get('attendance_type') == 'check_out':
             return jsonify({'message': 'Not yet checked in'}), 400
         
@@ -151,3 +151,49 @@ def absen_harian():
         return jsonify({'message': 'Check out success'}), 200
 
 # TODO: Absen Khusus
+@bp.route('/routine_agenda', methods=['GET'])
+@protected
+def get_routine_agenda():
+    agendas = Agenda.query.filter_by(type='routine').all()
+    data = [
+        {
+            'id': agenda.id,
+            'title': agenda.title,
+            'description': agenda.description,
+            'frequency': agenda.frequency,
+        } for agenda in agendas
+    ]
+    return jsonify(data)
+
+@bp.route('/routine_agenda', methods=['POST'])
+@protected
+def attend_routine_agenda():
+    """
+    payload: agenda_id, latitude, longitude
+    """
+    data = request.get_json()
+    if not all(k in data for k in ('agenda_id', 'latitude', 'longitude')):
+        return jsonify({'message': 'missing payload'}), 400
+    
+    username = g.user_data['username']
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+    
+    jakarta_tz = pytz.timezone('Asia/Jakarta')
+    date = datetime.datetime.now(jakarta_tz).date()
+    agenda_attendee = AgendaAttendee.query.filter_by(user_id=user.id, agenda_id=data['agenda_id'], attendance_date=date).first()
+    if agenda_attendee:
+        return jsonify({'message': 'Already attended'}), 400
+    
+    agenda_attendee = AgendaAttendee(
+        user_id=user.id,
+        agenda_id=data['agenda_id'],
+        attendance_date=date,
+        latitude=data['latitude'],
+        longitude=data['longitude']
+    )
+    current_app.db.session.add(agenda_attendee)
+    current_app.db.session.commit()
+    return jsonify({'message': 'Attendance recorded'}), 200
+    
