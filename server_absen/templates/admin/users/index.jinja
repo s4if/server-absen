@@ -1,0 +1,99 @@
+{% extends "layout.jinja" %}
+
+{% block title %}Data Guru{% endblock %}
+
+{% from 'macros.jinja' import render_field, render_notif %}
+
+{% block content %}
+
+{{ render_notif(error, success, info) }}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">Beranda</li>
+        <li class="breadcrumb-item active">Data Guru</li>
+    </ol>
+</nav>
+
+<div class="mb-3">
+    <a href="{{ url_for('admin.add_user') }}" class="btn btn-primary">Tambah Guru</a>
+</div>
+
+<div class="dashboard">
+    <table id="users_table" class="table table-striped table-bordered">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Nama Lengkap</th>
+                <th>L/P</th>
+                <th>Unit</th>
+                <th>Aksi</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Data will be populated here -->
+        </tbody>
+    </table>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="modal_hapus" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Konfirmasi Hapus</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Apakah Anda yakin ingin menghapus data ini?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <a id="btn_hapus" class="btn btn-danger">Hapus</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block custom_js %}
+<script>
+    $(document).ready(function() {
+        $('#users_table').DataTable(
+            {
+                "ajax": "{{ url_for('admin.get_users') }}",
+                "columns": [
+                    {"data": "id"},
+                    {"data": "username"},
+                    {"data": "full_name"},
+                    {"data": "gender"},
+                    {"data": "division"},
+                    {"data": "actions"}
+                ]
+            }
+        );
+    });
+    var konfirm_hapus = (user_id) => {
+        btn_hapus = document.getElementById("btn_hapus")
+        btn_hapus.onclick = () => {
+            $.ajax({
+            url: "{{ url_for('admin.delete_user') }}",
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ id: user_id }),
+            success: function(response) {
+                // Handle success response
+                location.reload();
+            },
+            error: function(xhr) {
+                // Handle error response
+                alert('Error deleting user');
+            }
+            });
+        }
+        modal_hapus = $("#modal_hapus");
+        modal_hapus.modal('show');
+    }
+</script>
+{% endblock %}

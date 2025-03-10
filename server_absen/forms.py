@@ -1,0 +1,18 @@
+from flask_wtf import FlaskForm
+from wtforms import SelectField, StringField, PasswordField, SubmitField
+from wtforms.validators import DataRequired, Length
+
+class LoginForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=25)])
+    password = PasswordField('Password', validators=[DataRequired(), Length(min=6, max=25)])
+    submit = SubmitField('Login')
+
+class EditUserForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=25)])
+    full_name = StringField('Nama Lengkap', validators=[DataRequired(), Length(min=3, max=60)])
+    division = SelectField('Unit', choices=[('SMA', 'SMA'), ('SMK', 'SMK'), ('SMP', 'SMP'), ('Non-Pengajar', 'Non-Pengajar')], validators=[DataRequired()])
+    gender = SelectField('Jenis Kelamin', choices=[('L', 'Laki-laki'), ('P', 'Perempuan')], validators=[DataRequired()])
+    submit = SubmitField('Simpan')
+
+class AddUserForm(EditUserForm):
+    password = PasswordField('Password', validators=[DataRequired(), Length(min=6, max=25)])

@@ -1,10 +1,11 @@
-from flask import Flask, render_template
+from flask import Flask, redirect, render_template
 from flask_migrate import Migrate
 from flask.cli import click
 from .config import Config
-from .model import db, User, Admin
+from .models import db, User, Admin
 from .seeders import seed_all
 from .api import bp as api_bp
+from .admin import bp as admin_bp
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -12,6 +13,10 @@ app.config.from_object(Config)
 # Initialize extensions
 db.init_app(app)
 migrate = Migrate(app, db)
+
+@app.route('/')
+def index():
+    return redirect('/admin/login')
 
 @app.route('/test_layout')
 def test_layout():
@@ -52,6 +57,7 @@ def reset_user_password(username, password):
 
 # Register blueprint
 app.register_blueprint(api_bp, url_prefix='/api')
+app.register_blueprint(admin_bp, url_prefix='/admin')
 
 
 if __name__ == '__main__':

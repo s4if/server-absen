@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
+    <title>{% block title %}Admin Dashboard{% endblock %}</title>
     <!-- Bootstrap 5 CSS -->
     <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
     <!-- Bootstrap Icons -->
@@ -82,6 +82,12 @@
             }
         }
     </style>
+
+    <!-- JS is here -->
+    <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap.bundle.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/htmx.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/datatables.js') }}"></script>
 </head>
 <body>
     <!-- Navbar -->
@@ -100,11 +106,11 @@
             <h5 class="text-white">Navigation</h5>
         </div>
         <nav class="nav flex-column">
-            <a class="nav-link" href="#"><i class="bi bi-speedometer2 me-2"></i> Dashboard</a>
-            <a class="nav-link" href="#"><i class="bi bi-people me-2"></i> Profile</a>
+            <a class="nav-link" href="{{ url_for('admin.dashboard') }}"><i class="bi bi-speedometer2 me-2"></i> Dashboard</a>
+            <a class="nav-link" href="{{ url_for('admin.users')}}"><i class="bi bi-people me-2"></i> Guru</a>
             <a class="nav-link" href="#"><i class="bi bi-box-seam me-2"></i> Products</a>
             <a class="nav-link" href="#"><i class="bi bi-file-text me-2"></i> Orders</a>
-            <a class="nav-link" href="#"><i class="bi bi-door-closed me-2"></i> Logout</a>
+            <a class="nav-link" href="{{ url_for('admin.logout') }}"><i class="bi bi-door-closed me-2"></i> Logout</a>
         </nav>
     </div>
 
@@ -115,11 +121,6 @@
     <div class="main-content p-4" id="mainContent">
         {% block content %}{% endblock %}
     </div>
-
-    <!-- Bootstrap 5 JS Bundle with Popper -->
-    <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/datatables.min.js') }}"></script>
 
     <script>
         const sidebar = document.getElementById('sidebar');
@@ -167,5 +168,9 @@
             }
         });
     </script>
+
+    <!-- Custom JS -->
+    {% block custom_js %} {% endblock %}
+
 </body>
 </html>

@@ -1,0 +1,35 @@
+{% extends "layout.jinja" %}
+
+{% block title %}Tambah Guru{% endblock %}
+
+{% from 'macros.jinja' import render_field, render_notif %}
+
+{% block content %}
+
+{{ render_notif(error, success, info) }}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">Beranda</li>
+        <li class="breadcrumb-item">Data Guru</li>
+        <li class="breadcrumb-item active">{{ 'Edit Guru' if edit else 'Tambah Guru' }}</li>
+    </ol>
+</nav>
+
+<div class="dashboard">
+<form method="POST" action="{{ form_url }}">
+    {{ form.hidden_tag() }}
+    {{ render_field(form.username) }}
+    {% if not edit %}
+    {{ render_field(form.password) }}
+    {% endif %}
+    {{ render_field(form.full_name) }}
+    {{ render_field(form.division) }}
+    {{ render_field(form.gender) }}
+    <div class="form-group">
+        {{ form.submit(class="btn btn-primary") }}
+        <a href="{{ url_for('admin.users') }}" class="btn btn-secondary">Kembali</a>
+    </div>
+</form>
+</div>
+{% endblock %}
