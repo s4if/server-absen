@@ -2,22 +2,32 @@ from flask import Blueprint, request, jsonify, g, current_app
 from functools import wraps
 import jwt # from PyJWT!
 import datetime
-from .model import AttendanceLocation, User, Attendance, Agenda, AgendaAttendee
+from .models import AttendanceLocation, User, Attendance, Agenda, AgendaAttendee
 import pytz
 
 bp = Blueprint('api', __name__, url_prefix='/api')
 # TODO: API diberi rate limit
 
 def generate_token(username, device_id) -> str:
+    user = User.query.filter_by(username=username).first()
+
+    if not user or user.deleted_at is not None:
+        return jsonify({'message': 'User not found'}), 404
+    
+    last_login = datetime.datetime.now(pytz.timezone('Asia/Jakarta')).date()
+    user.last_login = last_login
+    current_app.db.session.commit()
+
     token = jwt.encode({
         'username': username,
         'device_id': device_id,
-        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=2)
+        'exp': datetime.datetime.now(pytz.timezone('Asia/Jakarta')) + datetime.timedelta(days=1)
     }, current_app.config['SECRET_KEY'], algorithm='HS256')
     # Ensure token is a string (handles PyJWT 1.x and 2.x compatibility)
     if isinstance(token, bytes):
         token = token.decode('utf-8')
-    return token
+    refresh_at = datetime.datetime.now(pytz.timezone('Asia/Jakarta')) + datetime.timedelta(hours=12)
+    return token, refresh_at
 
 # Add your API routes here
 # Decorator to protect routes
@@ -60,8 +70,8 @@ def login():
 
     user = User.query.filter_by(username=username).first()
     if user and user.check_password(password):
-        token = generate_token(username, device_id)
-        return jsonify({'token': token})
+        token, refresh_time = generate_token(username, device_id)
+        return jsonify({'token': token, 'refresh_time':refresh_time}), 200
     return jsonify({'message': 'Invalid credentials'}), 401
 
 @bp.route('/refresh_token', methods=['POST'])
@@ -72,9 +82,8 @@ def refresh_token():
     device_id = g.user_data['device_id']
     
     # Generate a new token
-    new_token = generate_token(username, device_id)
-    
-    return jsonify({'token': new_token})
+    token, refresh_time = generate_token(username, device_id)
+    return jsonify({'token': token, 'refresh_time':refresh_time}), 200
 
 # Protected dashboard data endpoint
 @bp.route('/dashboard_data', methods=['GET'])
