@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from .model import db, Admin, User, AttendanceLocation, Attendance
+from .models import db, Admin, User, AttendanceLocation, Attendance
 
 def seed_all():
     """Seed all tables with initial data"""
@@ -26,18 +26,21 @@ def seed_users():
             'username': 'mrfu',
             'password': 'password123',
             'division': 'SMA',
+            'gender': 'L',
             'full_name': 'Ahmad Fuad, S.Pd.'
         },
         {
             'username':'ismail',
             'password':'password123',
             'division':'SMK',
+            'gender': 'L',
             'full_name':'Ismail, S.T.'
         },
         {
             'username':'pamelri',
             'password':'password123',
             'division':'SMP',
+            'gender': 'L',
             'full_name':'Pamel Riyadi, S.Pd.'
         }
         
@@ -48,7 +51,8 @@ def seed_users():
             user = User(
                 username=user_data['username'],
                 division=user_data['division'],
-                full_name=user_data['full_name']
+                full_name=user_data['full_name'],
+                gender=user_data['gender']
             )
             user.set_password(user_data['password'])
             db.session.add(user)

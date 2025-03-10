@@ -42,6 +42,9 @@ class User(db.Model): # untuk guru pakai ini
     password_hash = db.Column(db.String(256))
     division = db.Column(db.String(80), nullable=False)
     full_name = db.Column(db.String(120))
+    gender = db.Column(db.Enum("L", "P"), nullable=False) # Laki-laki, Perempuan
+    last_login = db.Column(db.DateTime, nullable=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)  # Soft delete timestamp
     
     # Use timezone-aware Asia/Jakarta timestamps
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')))
@@ -52,12 +55,17 @@ class User(db.Model): # untuk guru pakai ini
     )
     
     attendances = db.relationship('Attendance', backref='user', lazy=True)
+    agenda_attendees = db.relationship('AgendaAttendee', backref='user', lazy=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+    
+    def soft_delete(self):
+        self.deleted_at = datetime.now(pytz.timezone('Asia/Jakarta'))
+        db.session.commit()
 
     def __repr__(self):
         return f'<User {self.username}>'
