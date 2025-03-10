@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
-from wtforms import SelectField, StringField, PasswordField, SubmitField
-from wtforms.validators import DataRequired, Length
+from wtforms import SelectField, StringField, PasswordField, SubmitField, FloatField
+from wtforms.validators import DataRequired, Length, NumberRange
 
 class LoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired(), Length(min=4, max=25)])
@@ -16,3 +16,11 @@ class EditUserForm(FlaskForm):
 
 class AddUserForm(EditUserForm):
     password = PasswordField('Password', validators=[DataRequired(), Length(min=6, max=25)])
+
+class AttendanceLocationForm(FlaskForm):
+    name = StringField('Nama Lokasi', validators=[DataRequired(), Length(max=120)])
+    short_name = StringField('Kode Lokasi', validators=[DataRequired(), Length(max=20)])
+    description = StringField('Deskripsi', validators=[Length(max=200)])
+    latitude = FloatField('Latitude', validators=[DataRequired(), NumberRange(min=-90, max=90)])
+    longitude = FloatField('Longitude', validators=[DataRequired(), NumberRange(min=-180, max=180)])
+    submit = SubmitField('Save')

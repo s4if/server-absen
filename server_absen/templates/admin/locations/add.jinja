@@ -1,0 +1,33 @@
+{% extends "layout.jinja" %}
+
+{% block title %}Tambah Guru{% endblock %}
+
+{% from 'macros.jinja' import render_field, render_notif %}
+
+{% block content %}
+
+{{ render_notif(error, success, info) }}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">Beranda</li>
+        <li class="breadcrumb-item">Data Lokasi Absen</li>
+        <li class="breadcrumb-item active">{{ 'Edit Lokasi Absen' if edit else 'Tambah Lokasi Absen' }}</li>
+    </ol>
+</nav>
+
+<div class="dashboard">
+<form method="POST" action="{{ form_url }}">
+    {{ form.hidden_tag() }}
+    {{ render_field(form.name) }}
+    {{ render_field(form.short_name) }}
+    {{ render_field(form.description) }}
+    {{ render_field(form.latitude) }}
+    {{ render_field(form.longitude) }}
+    <div class="form-group">
+        {{ form.submit(class="btn btn-primary") }}
+        <a href="{{ url_for('admin.locations')}}" class="btn btn-secondary">Kembali</a>
+    </div>
+</form>
+</div>
+{% endblock %}

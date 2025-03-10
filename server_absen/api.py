@@ -106,7 +106,7 @@ def cek_login():
 @bp.route('/get_permitted_locations', methods=['GET'])
 @protected
 def get_permitted_locations():
-    locations = AttendanceLocation.query.all()
+    locations = AttendanceLocation.query.filter(AttendanceLocation.deleted_at.is_(None)).all()
     data = [
         {
             'id': location.id,

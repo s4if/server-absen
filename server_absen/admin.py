@@ -146,3 +146,101 @@ def delete_user():
         return jsonify({"error": f"An error occurred while deleting the user: {str(e)}"}), 500
     
     return jsonify({"success": True}), 200
+
+@bp.route('/locations', methods=['GET'])
+@login_required
+def locations():
+    return render_template('admin/locations/index.jinja')
+
+@bp.route('/add_location', methods=['GET', 'POST'])
+@login_required
+def add_location():
+    from .forms import AttendanceLocationForm
+    form = AttendanceLocationForm(request.form)
+    form_url = url_for('admin.add_location')
+    if request.method == 'GET':
+        return render_template('admin/locations/add.jinja', form_url=form_url, form=form)
+    elif request.method == 'POST':
+        if form.validate_on_submit():
+            new_location = AttendanceLocation(
+                name=form.name.data,
+                short_name=form.short_name.data,
+                description=form.description.data,
+                latitude=form.latitude.data,
+                longitude=form.longitude.data
+            )
+            try:
+                db.session.add(new_location)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                error = f"An error occurred while adding the location: {str(e)}"
+                return render_template('admin/locations/add.jinja', form_url=form_url, form=form, error=error)
+            return redirect(url_for('admin.locations'))
+        else:
+            return render_template('admin/locations/add.jinja', form_url=form_url, form=form)
+
+@bp.route('/edit_location/<int:location_id>', methods=['GET', 'POST'])
+@login_required
+def edit_location(location_id):
+    from .forms import AttendanceLocationForm
+    location = AttendanceLocation.query.get(location_id)
+    form_url = url_for('admin.edit_location', location_id=location_id)
+    if not location:
+        return redirect(url_for('admin.locations'))
+    
+    form = AttendanceLocationForm(request.form, obj=location)
+    if request.method == 'GET':
+        return render_template('admin/locations/add.jinja', edit=True, form_url=form_url, form=form)
+    elif request.method == 'POST':
+        if form.validate_on_submit():
+            location.name = form.name.data
+            location.short_name = form.short_name.data
+            location.description = form.description.data
+            location.latitude = form.latitude.data
+            location.longitude = form.longitude.data
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                error = f"An error occurred while updating the location: {str(e)}"
+                return render_template('admin/locations/add.jinja', edit=True, form_url=form_url, location_id=location.id, form=form, error=error)
+            return redirect(url_for('admin.locations'))
+        else:
+            error = "Form validation failed"
+            return render_template('admin/locations/add.jinja', edit=True, form_url=form_url, form=form, error=error)
+
+@bp.route('/get_locations', methods=['GET'])
+@login_required
+def get_locations():
+    locations = AttendanceLocation.query.filter(AttendanceLocation.deleted_at.is_(None)).all()
+    
+    data = [{
+        'id': location.id,
+        'name': location.name,
+        'short_name': location.short_name,
+        'description': location.description,
+        'latitude': location.latitude,
+        'longitude': location.longitude,
+        'actions': f'<a href="{url_for("admin.edit_location", location_id=location.id)}" class="btn btn-sm btn-primary">Edit</a> '
+                    f'<button onclick="konfirm_hapus({location.id})" class="btn btn-sm btn-danger">Delete</button>'
+    } for location in locations]
+    
+    return jsonify({"data": data})
+
+@bp.route('/locations/delete', methods=['POST'])
+@login_required
+def delete_location():
+    id = request.json.get('id')
+    location = AttendanceLocation.query.get(id)
+    if not location:
+        return jsonify({"error": "Location not found"}), 404
+    
+    try:
+        location.deleted_at = datetime.now(pytz.timezone('Asia/Jakarta'))
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"An error occurred while deleting the location: {str(e)}"}), 500
+    
+    return jsonify({"success": True}), 200

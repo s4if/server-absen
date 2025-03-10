@@ -11,7 +11,7 @@ db = SQLAlchemy()
 class Admin(db.Model):
     __tablename__ = 'admins'
     
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
     full_name = db.Column(db.String(120))
@@ -37,7 +37,7 @@ class Admin(db.Model):
 class User(db.Model): # untuk guru pakai ini
     __tablename__ = 'users'
     
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
     division = db.Column(db.String(80), nullable=False)
@@ -73,12 +73,25 @@ class User(db.Model): # untuk guru pakai ini
 class AttendanceLocation(db.Model):
     __tablename__ = 'attendance_locations'
     
-    id = db.Column(db.String(20), primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(120), nullable=False)
     short_name = db.Column(db.String(20), nullable=False)
     description = db.Column(db.Text, nullable=True)
     latitude = db.Column(db.String(20), nullable=False)
     longitude = db.Column(db.String(20), nullable=False)
+    deleted_at = db.Column(db.DateTime, nullable=True)  # Soft delete timestamp
+
+    # Use timezone-aware Asia/Jakarta timestamps
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')))
+    updated_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')),
+        onupdate=lambda: datetime.now(pytz.timezone('Asia/Jakarta'))
+    )
+
+    def soft_delete(self):
+        self.deleted_at = datetime.now(pytz.timezone('Asia/Jakarta'))
+        db.session.commit()
 
 # absensi kerja harian
 class Attendance(db.Model):
@@ -89,13 +102,13 @@ class Attendance(db.Model):
         db.UniqueConstraint('user_id', 'attendance_date', name='uq_user_date'),
     )
     
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     attendance_date = db.Column(db.Date, nullable=False)
     check_in = db.Column(db.DateTime, nullable=False)
-    check_in_location_id = db.Column(db.String(20), db.ForeignKey('attendance_locations.id'), nullable=False)
+    check_in_location_id = db.Column(db.Integer, db.ForeignKey('attendance_locations.id'), nullable=False)
     check_out = db.Column(db.DateTime, nullable=True)
-    check_out_location_id = db.Column(db.String(20), db.ForeignKey('attendance_locations.id'), nullable=True)
+    check_out_location_id = db.Column(db.Integer, db.ForeignKey('attendance_locations.id'), nullable=True)
     status = db.Column(db.String(20), default='present')  # present, late, absent
     notes = db.Column(db.Text)
 
@@ -153,6 +166,11 @@ class Agenda(db.Model):
         default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')),
         onupdate=lambda: datetime.now(pytz.timezone('Asia/Jakarta'))
     )
+    deleted_at = db.Column(db.DateTime, nullable=True)  # Soft delete timestamp
+
+    def soft_delete(self):
+        self.deleted_at = datetime.now(pytz.timezone('Asia/Jakarta'))
+        db.session.commit()
 
     def __repr__(self):
         return f'<Agenda {self.title}>'
