@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, g, current_app
 from functools import wraps
 import jwt # from PyJWT!
 import datetime
-from .models import AttendanceLocation, User, Attendance, Agenda, AgendaAttendee
+from .models import AttendanceLocation, User, Attendance
 import pytz
 
 bp = Blueprint('api', __name__, url_prefix='/api')
@@ -127,6 +127,10 @@ def daily_attendance():
     if not location_id:
         return jsonify({'message': 'location_id is required'}), 400
     
+    att_loc = AttendanceLocation.query.get(location_id)
+    if not att_loc:
+        return jsonify({'message': 'Invalid location_id'}), 400
+    
     username = g.user_data['username']
     user = User.query.filter_by(username=username).first()
     if not user:
@@ -158,51 +162,3 @@ def daily_attendance():
         attendance.check_out_location_id = location_id
         current_app.db.session.commit()
         return jsonify({'message': 'Check out success'}), 200
-
-# TODO: Absen Khusus
-@bp.route('/routine_agenda', methods=['GET'])
-@protected
-def get_routine_agenda():
-    agendas = Agenda.query.filter_by(type='routine').all()
-    data = [
-        {
-            'id': agenda.id,
-            'title': agenda.title,
-            'description': agenda.description,
-            'frequency': agenda.frequency,
-        } for agenda in agendas
-    ]
-    return jsonify(data)
-
-@bp.route('/routine_agenda', methods=['POST'])
-@protected
-def attend_routine_agenda():
-    """
-    payload: agenda_id, latitude, longitude
-    """
-    data = request.get_json()
-    if not all(k in data for k in ('agenda_id', 'latitude', 'longitude')):
-        return jsonify({'message': 'missing payload'}), 400
-    
-    username = g.user_data['username']
-    user = User.query.filter_by(username=username).first()
-    if not user:
-        return jsonify({'message': 'User not found'}), 404
-    
-    jakarta_tz = pytz.timezone('Asia/Jakarta')
-    date = datetime.datetime.now(jakarta_tz).date()
-    agenda_attendee = AgendaAttendee.query.filter_by(user_id=user.id, agenda_id=data['agenda_id'], attendance_date=date).first()
-    if agenda_attendee:
-        return jsonify({'message': 'Already attended'}), 400
-    
-    agenda_attendee = AgendaAttendee(
-        user_id=user.id,
-        agenda_id=data['agenda_id'],
-        attendance_date=date,
-        latitude=data['latitude'],
-        longitude=data['longitude']
-    )
-    current_app.db.session.add(agenda_attendee)
-    current_app.db.session.commit()
-    return jsonify({'message': 'Attendance recorded'}), 200
-    

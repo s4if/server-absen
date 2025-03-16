@@ -3,7 +3,7 @@ from functools import wraps
 from flask_wtf.csrf import CSRFProtect
 from datetime import datetime
 import pytz
-from .models import db, Admin, User, AttendanceLocation, Agenda  # Import the Admin model
+from .models import db, Admin, User, AttendanceLocation, GenderType  # Import the Admin model
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -63,10 +63,14 @@ def add_user():
         return render_template('admin/users/add.jinja', form_url=form_url, form=form)
     elif request.method == 'POST':
         if form.validate_on_submit():
+            gt = GenderType.MALE
+            if form.gender.data == 'P': 
+                gt = GenderType.FEMALE
+                
             new_user = User(
                 username=form.username.data,
                 full_name=form.full_name.data,
-                gender=form.gender.data,
+                gender=gt,
                 division=form.division.data
             )
             new_user.set_password(form.password.data)

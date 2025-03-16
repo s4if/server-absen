@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from .models import db, Admin, User, AttendanceLocation, Attendance
+from .models import db, Admin, User, AttendanceLocation, Attendance, GenderType, AttendanceStatusType
 
 def seed_all():
     """Seed all tables with initial data"""
@@ -26,21 +26,21 @@ def seed_users():
             'username': 'mrfu',
             'password': 'password123',
             'division': 'SMA',
-            'gender': 'L',
+            'gender': GenderType.MALE,
             'full_name': 'Ahmad Fuad, S.Pd.'
         },
         {
             'username':'ismail',
             'password':'password123',
             'division':'SMK',
-            'gender': 'L',
+            'gender': GenderType.MALE,
             'full_name':'Ismail, S.T.'
         },
         {
             'username':'pamelri',
             'password':'password123',
             'division':'SMP',
-            'gender': 'L',
+            'gender': GenderType.MALE,
             'full_name':'Pamel Riyadi, S.Pd.'
         }
         
@@ -88,7 +88,14 @@ def seed_attendance_locations():
 
     for location_data in sample_locations:
         if AttendanceLocation.query.filter_by(id=location_data['id']).first() is None:
-            location = AttendanceLocation(**location_data)
+            location = AttendanceLocation(
+                id=int(location_data['id']),
+                name=location_data['name'],
+                short_name=location_data['short_name'],
+                latitude=float(location_data['latitude']),
+                longitude=float(location_data['longitude']),
+                description=location_data['description']
+            )
             db.session.add(location)
 
 def seed_attendances():
