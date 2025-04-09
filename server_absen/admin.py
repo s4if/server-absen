@@ -249,3 +249,47 @@ def delete_location():
         return jsonify({"error": f"An error occurred while deleting the location: {str(e)}"}), 500
     
     return jsonify({"success": True}), 200
+
+@bp.route('/attendances', methods=['GET'])
+@login_required
+def attendances():
+    return render_template('admin/attendances/index.jinja')
+
+@bp.route('/get_attendances', methods=['GET'])
+@login_required
+def get_attendances():
+    result = db.session.execute(db.text(
+        """
+        SELECT
+            a.id,
+            u.full_name,
+            u.division,
+            a.attendance_date,
+            a.check_in,
+            a.check_out,
+            ci.name AS check_in_location,
+            co.name AS check_out_location
+        FROM attendances a
+        JOIN users u ON a.user_id = u.id
+        JOIN attendance_locations ci ON a.check_in_location_id = ci.id
+        LEFT JOIN attendance_locations co ON a.check_out_location_id = co.id
+        """
+    ))
+    rows = result.fetchall()
+    data = []
+    data_number = 1
+    for row in rows:
+        data.append({
+            "id": row.id,
+            "no": data_number,
+            "division": row.division,
+            "full_name": row.full_name,
+            "attendance_date": row.attendance_date.isoformat() if hasattr(row.attendance_date, 'isoformat') else row.attendance_date,
+            # Timezone still doesn't work
+            "check_in": row.check_in.astimezone(pytz.timezone('Asia/Jakarta')).strftime('%H:%M') if row.check_in else None,
+            "check_out": row.check_out.astimezone(pytz.timezone('Asia/Jakarta')).strftime('%H:%M') if row.check_out else None,
+            "check_in_location": row.check_in_location,
+            "check_out_location": row.check_out_location,
+        })
+        data_number += 1
+    return jsonify({"data": data})

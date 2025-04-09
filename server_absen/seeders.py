@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from .models import db, Admin, User, AttendanceLocation, Attendance, GenderType, AttendanceStatusType
 
 def seed_all():
@@ -100,6 +100,9 @@ def seed_attendance_locations():
 
 def seed_attendances():
     """Seed attendances table with sample attendance records"""
+    import pytz
+    jakarta_tz = pytz.timezone('Asia/Jakarta')
+
     # Get a user for sample attendance
     user = User.query.filter_by(username='mrfu').first()
     if not user:
@@ -112,20 +115,18 @@ def seed_attendances():
 
     # Create attendance for the last 5 days
     for i in range(5):
-        date = datetime.now(timezone(timedelta(hours=7))) - timedelta(days=i)
+        date = datetime.now(jakarta_tz) - timedelta(days=i)
         attendance_date = date.date()
         
         # Skip if attendance already exists for this date
         if Attendance.query.filter_by(user_id=user.id, attendance_date=attendance_date).first():
             continue
 
-        # Create check-in time at 07:30
-        check_in_time = datetime.combine(attendance_date, datetime.strptime('07:30', '%H:%M').time())
-        check_in_time = check_in_time.replace(tzinfo=timezone(timedelta(hours=7)))
+        # Create check-in time at 07:30 in Asia/Jakarta timezone
+        check_in_time = date.replace(hour=7, minute=30, second=0, microsecond=0)
         
-        # Create check-out time at 16:00
-        check_out_time = datetime.combine(attendance_date, datetime.strptime('16:00', '%H:%M').time())
-        check_out_time = check_out_time.replace(tzinfo=timezone(timedelta(hours=7)))
+        # Create check-out time at 16:00 in Asia/Jakarta timezone
+        check_out_time = date.replace(hour=16, minute=0, second=0, microsecond=0)
 
         attendance = Attendance(
             user_id=user.id,
