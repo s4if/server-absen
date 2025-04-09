@@ -1,10 +1,12 @@
 #!/bin/bash
 
-CONTAINER_NAME=dev-postgres
-POSTGRES_USER=devuser
-POSTGRES_PASSWORD=devpass
-POSTGRES_DB=devdb
-POSTGRES_PORT=5432
+# Load environment variables from .env file
+if [ -f .env ]; then
+  export $(grep -v '^#' .env | xargs)
+else
+  echo ".env file not found. Exiting."
+  exit 1
+fi
 
 # Stop and remove existing container if running
 docker rm -f $CONTAINER_NAME 2>/dev/null
