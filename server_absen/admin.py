@@ -95,13 +95,15 @@ def edit_user(user_id):
         return redirect(url_for('admin.users'))
     
     form = EditUserForm(request.form, obj=user)
+    # Set the gender field explicitly since it uses an enum
+    form.gender.data = 'P' if user.gender == GenderType.FEMALE else 'L'
     if request.method == 'GET':
         return render_template('admin/users/add.jinja', edit=True, form_url=form_url, form=form)
     elif request.method == 'POST':
         if form.validate_on_submit():
             user.username = form.username.data
             user.full_name = form.full_name.data
-            user.gender = form.gender.data
+            user.gender = GenderType.FEMALE if form.gender.data == 'P' else GenderType.MALE
             user.division = form.division.data
             try:
                 db.session.commit()
@@ -120,18 +122,17 @@ def get_users():
     from .models import User
     # Correct filter syntax for non-deleted users
     users = User.query.filter(User.deleted_at.is_(None)).all()
-    
     # Use list comprehension for cleaner data formatting
     data = [{
         'id': user.id,
         'username': user.username,
         'full_name': user.full_name,
-        'gender': user.gender,
+        'gender': user.gender.value if user.gender else None,
         'division': user.division,
         'actions': f'<a href="{url_for("admin.edit_user", user_id=user.id)}" class="btn btn-sm btn-primary">Edit</a> '
                     f'<button onclick="konfirm_hapus({user.id})" class="btn btn-sm btn-danger">Delete</button>'
     } for user in users]
-    
+
     return jsonify({"data": data})
 
 @bp.route('/users/delete', methods=['POST'])

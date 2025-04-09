@@ -134,7 +134,7 @@ def seed_attendances():
             check_in_location_id=location.id,
             check_out=check_out_time,
             check_out_location_id=location.id,
-            status='present',
+            status=AttendanceStatusType.PRESENT,
             notes='Regular attendance'
         )
         db.session.add(attendance)
