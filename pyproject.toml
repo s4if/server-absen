@@ -12,5 +12,6 @@ dependencies = [
     "flask-wtf>=1.2.2",
     "psycopg2-binary>=2.9.10",
     "pyjwt>=2.10.1",
+    "python-dotenv>=1.1.0",
     "pytz>=2025.1",
 ]
