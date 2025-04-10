@@ -1,96 +1,92 @@
 from flask import Blueprint, request, jsonify, g, current_app
 from functools import wraps
-import jwt # from PyJWT!
+import jwt
 import datetime
-from .models import AttendanceLocation, User, Attendance
+from .models import AttendanceLocation, User, Attendance, db
 import pytz
 
 bp = Blueprint('api', __name__, url_prefix='/api')
-# TODO: API diberi rate limit
 
-def generate_token(username, device_id) -> str:
-    user = User.query.filter_by(username=username).first()
+JAKARTA_TZ = pytz.timezone('Asia/Jakarta')
 
-    if not user or user.deleted_at is not None:
-        return jsonify({'message': 'User not found'}), 404
-    
-    last_login = datetime.datetime.now(pytz.timezone('Asia/Jakarta')).date()
-    user.last_login = last_login
-    current_app.db.session.commit()
+def generate_token(user, device_id) -> tuple:
+    if user.deleted_at is not None:
+        return None, None
 
-    token = jwt.encode({
-        'username': username,
+    today = datetime.datetime.now(JAKARTA_TZ).date()
+    user.last_login = today
+    db.session.commit()
+
+    now = datetime.datetime.now(JAKARTA_TZ)
+    exp = now + datetime.timedelta(minutes=30)
+    token_payload = {
+        'username': user.username,
         'device_id': device_id,
-        'exp': datetime.datetime.now(pytz.timezone('Asia/Jakarta')) + datetime.timedelta(days=1)
-    }, current_app.config['SECRET_KEY'], algorithm='HS256')
-    # Ensure token is a string (handles PyJWT 1.x and 2.x compatibility)
+        'exp': exp
+    }
+    token = jwt.encode(
+        token_payload,
+        current_app.config['SECRET_KEY'],
+        algorithm='HS256'
+    )
     if isinstance(token, bytes):
         token = token.decode('utf-8')
-    refresh_at = datetime.datetime.now(pytz.timezone('Asia/Jakarta')) + datetime.timedelta(hours=12)
-    return token, refresh_at
+    refresh_at = now + datetime.timedelta(hours=12)
+    return token, refresh_at.isoformat()
 
-# Add your API routes here
-# Decorator to protect routes
 def protected(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
         if not auth_header:
-            return jsonify({'message': 'Authorization header is missing'}), 401
+            return jsonify({'message': 'Authorization header missing'}), 401
+            
+        parts = auth_header.split()
+        if len(parts) != 2 or parts[0].lower() != 'bearer':
+            return jsonify({'message': 'Invalid token format'}), 401
 
-        parts = auth_header.split(" ")
-        if len(parts) != 2 or parts[0] != 'Bearer':
-            return jsonify({'message': 'Invalid Authorization header'}), 401
-
-        token = parts[1]
         try:
-            data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-            # untuk pertimbangan, username dicocokan ke device_id atau tidak.
-            # kalau dicocokkan harus request ke database. plusnya lebih aman, minusnya lebih lambat.
-            g.user_data = data  # Store decoded token data in g
+            data = jwt.decode(parts[1], current_app.config['SECRET_KEY'], algorithms=['HS256'])
+            g.user_data = data
             return func(*args, **kwargs)
         except jwt.ExpiredSignatureError:
-            return jsonify({'message': 'Token has expired'}), 401
+            return jsonify({'message': 'Token expired'}), 401
         except jwt.InvalidTokenError:
             return jsonify({'message': 'Invalid token'}), 401
+
     return wrapper
 
-# Login endpoint
 @bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
-
-    # Ensure username, password, and device_id are provided
-    if not all(k in data for k in ('username', 'password', 'device_id')):
+    required_fields = {'username', 'password', 'device_id'}
+    if not required_fields.issubset(data):
         return jsonify({'error': 'Missing credentials'}), 400
 
-    username = data['username']
-    password = data['password']
-    device_id = data['device_id']
+    user = User.query.filter_by(username=data['username']).first()
+    if not user or not user.check_password(data['password']):
+        return jsonify({'message': 'Invalid credentials'}), 401
 
-    user = User.query.filter_by(username=username).first()
-    if user and user.check_password(password):
-        token, refresh_time = generate_token(username, device_id)
-        return jsonify({'token': token, 'refresh_time':refresh_time}), 200
-    return jsonify({'message': 'Invalid credentials'}), 401
+    token, refresh_time = generate_token(user, data['device_id'])
+    if not token:
+        return jsonify({'message': 'User not found'}), 404
+        
+    return jsonify({'token': token, 'refresh_time': refresh_time}), 200
 
-@bp.route('/refresh_token', methods=['POST'])
+@bp.route('/refresh_token', methods=['GET'])
 @protected
 def refresh_token():
-    # Get the current user from the token
-    username = g.user_data['user']
-    device_id = g.user_data['device_id']
-    
-    # Generate a new token
-    token, refresh_time = generate_token(username, device_id)
-    return jsonify({'token': token, 'refresh_time':refresh_time}), 200
+    user = User.query.filter_by(username=g.user_data['username']).first()
+    if not user or user.deleted_at:
+        return jsonify({'message': 'User not found'}), 404
 
-# Protected dashboard data endpoint
+    token, refresh_time = generate_token(user, g.user_data['device_id'])
+    return jsonify({'token': token, 'refresh_time': refresh_time}), 200
+
 @bp.route('/dashboard_data', methods=['GET'])
 @protected
 def dashboard_data():
-    username = g.user_data['username']
-    user = User.query.filter_by(username=username).first()
+    user = User.query.filter_by(username=g.user_data['username']).first()
     if not user:
         return jsonify({'message': 'User not found'}), 404
     return jsonify({
@@ -106,59 +102,54 @@ def cek_login():
 @bp.route('/get_permitted_locations', methods=['GET'])
 @protected
 def get_permitted_locations():
-    locations = AttendanceLocation.query.filter(AttendanceLocation.deleted_at.is_(None)).all()
-    data = [
-        {
-            'id': location.id,
-            'name': location.name,
-            'short_name': location.short_name,
-            'latitude': location.latitude,
-            'longitude': location.longitude
-        } for location in locations
-    ]
-    return jsonify(data)
+    locations = AttendanceLocation.query.filter_by(deleted_at=None).all()
+    return jsonify([{
+        'id': loc.id,
+        'name': loc.name,
+        'short_name': loc.short_name,
+        'latitude': loc.latitude,
+        'longitude': loc.longitude
+    } for loc in locations])
 
 @bp.route('/daily_attendance', methods=['POST'])
 @protected
 def daily_attendance():
-    # payload: location_id, attendance_type
     data = request.get_json()
-    location_id = data.get('location_id')
-    if not location_id:
-        return jsonify({'message': 'location_id is required'}), 400
-    
-    att_loc = AttendanceLocation.query.get(location_id)
+    if not data or 'location_id' not in data or 'attendance_type' not in data:
+        return jsonify({'message': 'Missing required fields'}), 400
+
+    if data['attendance_type'] not in {'check_in', 'check_out'}:
+        return jsonify({'message': 'Invalid attendance type'}), 400
+
+    att_loc = AttendanceLocation.query.get(data['location_id'])
     if not att_loc:
-        return jsonify({'message': 'Invalid location_id'}), 400
-    
-    username = g.user_data['username']
-    user = User.query.filter_by(username=username).first()
+        return jsonify({'message': 'Invalid location'}), 400
+
+    user = User.query.filter_by(username=g.user_data['username']).first()
     if not user:
         return jsonify({'message': 'User not found'}), 404
-    
-    jakarta_tz = pytz.timezone('Asia/Jakarta')
-    date = datetime.datetime.now(jakarta_tz).date()
+
+    now = datetime.datetime.now(JAKARTA_TZ)
+    date = now.date()
     attendance = Attendance.query.filter_by(user_id=user.id, attendance_date=date).first()
-    if not attendance:
-        if data.get('attendance_type') == 'check_out':
-            return jsonify({'message': 'Not yet checked in'}), 400
-        
+
+    if data['attendance_type'] == 'check_in':
+        if attendance:
+            return jsonify({'message': 'Already checked in'}), 400
         attendance = Attendance(
             user_id=user.id,
             attendance_date=date,
-            check_in=datetime.datetime.now(jakarta_tz),
-            check_in_location_id=location_id
+            check_in=now,
+            check_in_location_id=data['location_id']
         )
-        current_app.db.session.add(attendance)
-        current_app.db.session.commit()
-        return jsonify({'message': 'Check in success'}), 200
-    
-    else:
-        if data.get('attendance_type') == 'check_in':
-            return jsonify({'message': 'Already checked in'}), 400
+        db.session.add(attendance)
+        db.session.commit()
+        return jsonify({'message': 'Check in successful'}), 200
+
+    if not attendance:
+        return jsonify({'message': 'Not checked in yet'}), 400
         
-        # check out bisa diperbarui tanpa cek
-        attendance.check_out = datetime.datetime.now(jakarta_tz)
-        attendance.check_out_location_id = location_id
-        current_app.db.session.commit()
-        return jsonify({'message': 'Check out success'}), 200
+    attendance.check_out = now
+    attendance.check_out_location_id = data['location_id']
+    db.session.commit()
+    return jsonify({'message': 'Check out successful'}), 200
