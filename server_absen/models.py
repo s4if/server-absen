@@ -1,17 +1,16 @@
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import CheckConstraint
-from enum import Enum as PyEnum  # Import Python's Enum
+from enum import Enum as PyEnum
 from werkzeug.security import generate_password_hash, check_password_hash
 import pytz
-
-# Note: Timezone is hardcoded to Asia/Jakarta
 
 db = SQLAlchemy()
 
 class LocationMixin:
-    latitude = db.Column(db.Numeric(precision=9, scale=6), nullable=False)
-    longitude = db.Column(db.Numeric(precision=9, scale=6), nullable=False)
+    # Increased precision for PostgreSQL
+    latitude = db.Column(db.Numeric(precision=10, scale=8), nullable=False)
+    longitude = db.Column(db.Numeric(precision=12, scale=9), nullable=False)
     
     __table_args__ = (
         CheckConstraint('latitude BETWEEN -90 AND 90', name='check_latitude'),
@@ -19,16 +18,17 @@ class LocationMixin:
     )
 
 class TimestampMixin:
-    # Use timezone-aware Asia/Jakarta timestamps
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')))
+    # Using PostgreSQL's TIMESTAMP WITH TIME ZONE
+    created_at = db.Column(db.DateTime(timezone=True), 
+                          default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')))
     updated_at = db.Column(
-        db.DateTime,
+        db.DateTime(timezone=True),
         default=lambda: datetime.now(pytz.timezone('Asia/Jakarta')),
         onupdate=lambda: datetime.now(pytz.timezone('Asia/Jakarta'))
     )
 
 class SoftDeleteMixin:
-    deleted_at = db.Column(db.DateTime, nullable=True, index=True)  # Soft delete timestamp
+    deleted_at = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
 
     def soft_delete(self):
         self.deleted_at = datetime.now(pytz.timezone('Asia/Jakarta'))
@@ -41,9 +41,7 @@ class PasswordMixin:
         
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
-    
-# Enums
-# Use native ENUM for PostgreSQL and CHECK constraints for SQLite
+
 class GenderType(PyEnum):
     MALE = "L"
     FEMALE = "P"
@@ -63,8 +61,7 @@ class Admin(TimestampMixin, PasswordMixin, db.Model):
     def __repr__(self):
         return f'<Admin {self.username}>'
 
-
-class User(TimestampMixin, SoftDeleteMixin, PasswordMixin, db.Model): # untuk guru pakai ini
+class User(TimestampMixin, SoftDeleteMixin, PasswordMixin, db.Model):
     __tablename__ = 'users'
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -72,7 +69,7 @@ class User(TimestampMixin, SoftDeleteMixin, PasswordMixin, db.Model): # untuk gu
     division = db.Column(db.String(80), nullable=False, index=True)
     full_name = db.Column(db.String(120))
     gender = db.Column(db.Enum(GenderType, name='gender_type'), nullable=False)
-    last_login = db.Column(db.DateTime, nullable=True)
+    last_login = db.Column(db.DateTime(timezone=True), nullable=True)
     
     attendances = db.relationship('Attendance', backref='user', lazy=True)
 
@@ -90,11 +87,8 @@ class AttendanceLocation(TimestampMixin, SoftDeleteMixin, LocationMixin, db.Mode
     def __repr__(self):
         return f'<AttendanceLocation {self.name}>'
 
-# absensi kerja harian
 class Attendance(TimestampMixin, db.Model):
     __tablename__ = 'attendances'
-
-    # Add a unique constraint for (user_id, attendance_date)
     __table_args__ = (
         db.UniqueConstraint('user_id', 'attendance_date', name='uq_user_date'),
     )
@@ -102,12 +96,11 @@ class Attendance(TimestampMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     attendance_date = db.Column(db.Date, nullable=False)
-    check_in = db.Column(db.DateTime, nullable=False)
+    check_in = db.Column(db.DateTime(timezone=True), nullable=False)
     check_in_location_id = db.Column(db.Integer, db.ForeignKey('attendance_locations.id'), nullable=False)
-    check_out = db.Column(db.DateTime, nullable=True)
+    check_out = db.Column(db.DateTime(timezone=True), nullable=True)
     check_out_location_id = db.Column(db.Integer, db.ForeignKey('attendance_locations.id'), nullable=True)
 
-    # relationship
     check_in_location = db.relationship('AttendanceLocation', foreign_keys=[check_in_location_id])
     check_out_location = db.relationship('AttendanceLocation', foreign_keys=[check_out_location_id])
 
@@ -122,11 +115,10 @@ class SelfReportedAttendance(TimestampMixin, LocationMixin, db.Model):
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    attendance_time = db.Column(db.DateTime, nullable=False)
+    attendance_time = db.Column(db.DateTime(timezone=True), nullable=False)
     agenda_name = db.Column(db.String(120), nullable=False)
     location_name = db.Column(db.String(120), nullable=False)
-    address = db.Column(db.String(120), nullable=True)  # dari google api? client/server? add to TODO
-    # location already on LocationMixin
+    address = db.Column(db.String(120), nullable=True)
 
     def __repr__(self):
         return f'<SelfReportedAttendance {self.user_id} {self.attendance_time}>'
@@ -141,18 +133,12 @@ class Agenda(TimestampMixin, SoftDeleteMixin, LocationMixin, db.Model):
     type = db.Column(db.Enum('routine', 'flexible-routine', 'oneoff', name='agenda_type'), nullable=False)
     start_time = db.Column(db.Time, nullable=True)
     end_time = db.Column(db.Time, nullable=True)
-
-    # frequency (in days) for routine and flexible-routine
     frequency = db.Column(db.Integer, nullable=True)
-
-    # for routine and oneoff (in oneoff end_date and frequency is null)
     start_date = db.Column(db.Date, nullable=True)
     end_date = db.Column(db.Date, nullable=True)
-
-    # if participant is null, the agenda apply to all users unless division is not null
-    participants = db.relationship('User', secondary='agenda_participants', backref=db.backref('agendas', lazy='select'))
-    # select participant by division, I don't know if it is needed, but nice to have. Support multi division using ,
     for_division = db.Column(db.String(20), nullable=True)
+
+    participants = db.relationship('User', secondary='agenda_participants', backref=db.backref('agendas', lazy='select'))
 
     def __repr__(self):
         return f'<Agenda {self.name} {self.start_time}>'
@@ -163,6 +149,6 @@ class AgendaParticipant(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
     agenda_id = db.Column(db.Integer, db.ForeignKey('agendas.id'), primary_key=True)
 
-# indexes
+# Indexes
 db.Index('idx_attendance_user_date', 'user_id', 'attendance_date')
 db.Index('idx_agenda_start_end', 'start_date', 'end_date')
