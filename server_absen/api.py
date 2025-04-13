@@ -114,9 +114,15 @@ def get_permitted_locations():
 @bp.route('/daily_attendance', methods=['POST'])
 @protected
 def daily_attendance():
+    # needed fields: location_id, attendance_type (check_in or check_out), device_id
+
     data = request.get_json()
-    if not data or 'location_id' not in data or 'attendance_type' not in data:
+
+    if not data or 'location_id' not in data or 'attendance_type' not in data or 'device_id' not in data:
         return jsonify({'message': 'Missing required fields'}), 400
+
+    if data['device_id'] != g.user_data['device_id']:
+        return jsonify({'message': 'Invalid device ID'}), 403
 
     if data['attendance_type'] not in {'check_in', 'check_out'}:
         return jsonify({'message': 'Invalid attendance type'}), 400
