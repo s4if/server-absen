@@ -1,9 +1,11 @@
 from flask import Blueprint, request, jsonify, g, current_app
+from .models import SelfReportedAttendance
 from functools import wraps
 import jwt
 import datetime
 from .models import AttendanceLocation, User, Attendance, db
 import pytz
+from geopy.distance import geodesic
 
 bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -159,3 +161,144 @@ def daily_attendance():
     attendance.check_out_location_id = data['location_id']
     db.session.commit()
     return jsonify({'message': 'Check out successful'}), 200
+
+@bp.route('/self_reported_attendance', methods=['POST'])
+@protected
+def log_self_reported_attendance():
+    data = request.get_json()
+    required_fields = {'agenda_name', 'location_name', 'address', 'attendance_time', 'longitude', 'latitude'}
+    if not data or not required_fields.issubset(data.keys()):
+        return jsonify({'message': 'Missing required fields'}), 400
+
+    # Parse attendance_time
+    try:
+        attendance_time = datetime.datetime.fromisoformat(data['attendance_time']).astimezone(JAKARTA_TZ)
+    except (ValueError, TypeError):
+        return jsonify({'message': 'Invalid attendance_time format'}), 400
+
+    # Validate coordinates
+    try:
+        latitude = float(data['latitude'])
+        longitude = float(data['longitude'])
+    except (ValueError, TypeError):
+        return jsonify({'message': 'Invalid latitude or longitude format'}), 400
+    
+
+    if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+        return jsonify({'message': 'Latitude or longitude out of valid range'}), 400
+
+    # Check if the user exists
+    user = User.query.filter_by(username=g.user_data['username']).first()
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+    
+    # Calculate the 30-minute window start time
+    start_time = attendance_time - datetime.timedelta(minutes=30)
+
+    prev_self_report = SelfReportedAttendance.query.filter(
+        SelfReportedAttendance.user_id == user.id,
+        SelfReportedAttendance.attendance_time >= start_time,
+        SelfReportedAttendance.attendance_time <= attendance_time
+    ).order_by(SelfReportedAttendance.attendance_time.desc()).first()
+    if prev_self_report:
+        distance = geodesic(
+            (prev_self_report.latitude, prev_self_report.longitude), 
+            (latitude, longitude)
+            ).meters
+        if distance < 50:
+            return jsonify({'message': 'Self-reported attendance already exists for this location under 30 minutes ago'}), 400
+
+    self_report = SelfReportedAttendance(
+        user_id=user.id,
+        attendance_time=attendance_time,
+        agenda_name=data['agenda_name'],
+        location_name=data['location_name'],
+        address=data.get('address'),
+        latitude=latitude,
+        longitude=longitude
+    )
+    db.session.add(self_report)
+    db.session.commit()
+
+    return jsonify({'message': 'Self-reported attendance logged successfully'}), 201
+
+'''
+Example Request
+```json
+POST /api/self_reported_attendance HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+    "agenda_name": "Project Meeting",
+    "location_name": "Office Conference Room",
+    "address": "Jl. Sudirman No. 123",
+    "attendance_time": "2025-04-13T08:30:00+07:00",
+    "latitude": -6.1958,
+    "longitude": 106.8196
+}
+'''
+
+@bp.route('/get_self_reported_attendance', methods=['GET'])
+@protected
+def get_self_reported_attendance():
+    user = User.query.filter_by(username=g.user_data['username']).first()
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    self_reports = SelfReportedAttendance.query.filter_by(user_id=user.id).all()
+    data = [{
+        'id': sr.id,
+        'attendance_time': sr.attendance_time.isoformat(),
+        'agenda_name': sr.agenda_name,
+        'location_name': sr.location_name,
+        'address': sr.address,
+        'latitude': sr.latitude,
+        'longitude': sr.longitude
+    } for sr in self_reports]
+
+    return jsonify(data), 200
+
+@bp.route('/delete_self_reported_attendance', methods=['DELETE'])
+@protected
+def delete_self_reported_attendance():
+    data = request.get_json()
+    if not data or 'id' not in data:
+        return jsonify({'message': 'Missing required fields'}), 400
+
+    user = User.query.filter_by(username=g.user_data['username']).first()
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    self_report = SelfReportedAttendance.query.filter_by(id=data['id'], user_id=user.id).first()
+    if not self_report:
+        return jsonify({'message': 'Self-reported attendance not found'}), 404
+
+    db.session.delete(self_report)
+    db.session.commit()
+
+    return jsonify({'message': 'Self-reported attendance deleted successfully'}), 200
+
+@bp.route('/edit_self_reported_attendance', methods=['PUT'])
+@protected
+def edit_self_reported_attendance():
+    data = request.get_json()
+    required_fields = {'id', 'agenda_name', 'location_name', 'address'}
+    if not data or not required_fields.issubset(data.keys()):
+        return jsonify({'message': 'Missing required fields'}), 400
+
+    user = User.query.filter_by(username=g.user_data['username']).first()
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    self_report = SelfReportedAttendance.query.filter_by(id=data['id'], user_id=user.id).first()
+    if not self_report:
+        return jsonify({'message': 'Self-reported attendance not found'}), 404
+
+    # User can only update ageda name, location_name and address
+    self_report.agenda_name = data['agenda_name']
+    self_report.location_name = data['location_name']
+    self_report.address = data.get('address')
+    db.session.commit()
+
+    return jsonify({'message': 'Self-reported attendance updated successfully'}), 200
