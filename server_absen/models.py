@@ -66,7 +66,7 @@ class User(TimestampMixin, SoftDeleteMixin, PasswordMixin, db.Model):
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
-    division = db.Column(db.String(80), nullable=False, index=True)
+    division_id = db.Column(db.Integer, db.ForeignKey('divisions.id'), nullable=False, index=True)
     full_name = db.Column(db.String(120))
     gender = db.Column(db.Enum(GenderType, name='gender_type'), nullable=False)
     last_login = db.Column(db.DateTime(timezone=True), nullable=True)
@@ -75,6 +75,19 @@ class User(TimestampMixin, SoftDeleteMixin, PasswordMixin, db.Model):
 
     def __repr__(self):
         return f'<User {self.username}>'
+    
+class Division(TimestampMixin, db.Model): # Division => Unit dari Yayasan
+    __tablename__ = 'divisions'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(16), unique=True, nullable=False, index=True) #shortname, e.g. "SMAIT", "SMPTI", "Kebersihan", etc.
+    full_name = db.Column(db.String(120))
+    description = db.Column(db.Text, nullable=True)
+    
+    users = db.relationship('User', backref='division', lazy=True)
+
+    def __repr__(self):
+        return f'<Division {self.name}>'
 
 class AttendanceLocation(TimestampMixin, SoftDeleteMixin, LocationMixin, db.Model):
     __tablename__ = 'attendance_locations'
@@ -123,6 +136,47 @@ class SelfReportedAttendance(TimestampMixin, LocationMixin, db.Model):
     def __repr__(self):
         return f'<SelfReportedAttendance {self.user_id} {self.attendance_time}>'
     
+class AgendaTemplate(TimestampMixin, SoftDeleteMixin, LocationMixin, db.Model):
+    __tablename__ = 'agenda_templates'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(120), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+
+    type = db.Column(db.Enum('routine', 'flexible-routine', 'oneoff', name='agenda_template_type'), nullable=False)
+    status = db.Column(db.Enum('active', 'inactive', name='agenda_template_status'), default='active')
+    start_time = db.Column(db.Time, nullable=True)
+    end_time = db.Column(db.Time, nullable=True)
+    frequency = db.Column(db.Integer, nullable=True) # in days e.g. 1 for daily, 7 for weekly
+    divisions = db.relationship(
+        'Division',
+        secondary='agenda_template_divisions',
+        backref=db.backref('agenda_templates', lazy='select'),
+        lazy='select'
+    )
+    location_name = db.Column(db.String(120), nullable=False)
+    # coordinate is already inherited from LocationMixin
+    def __repr__(self):
+        return f'<AgendaTemplate {self.name} {self.start_time}>'
+
+class AgendaTemplateDivision(db.Model):
+    __tablename__ = 'agenda_template_divisions'
+    
+    agenda_template_id = db.Column(db.Integer, db.ForeignKey('agenda_templates.id'), primary_key=True)
+    division_id = db.Column(db.Integer, db.ForeignKey('divisions.id'), primary_key=True)
+
+class AgendaTemplateAttendance(TimestampMixin, LocationMixin, db.Model):
+    __tablename__ = 'agenda_template_attendances'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    agenda_template_id = db.Column(db.Integer, db.ForeignKey('agenda_templates.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    attendance_datetime = db.Column(db.DateTime(timezone=True), nullable=False)
+
+    def __repr__(self):
+        return f'<AgendaTemplateAttendance {self.user_id} {self.attendance_date}>'
+
+## Not used yet, too complex, might be used in the future  
 class Agenda(TimestampMixin, SoftDeleteMixin, LocationMixin, db.Model):
     __tablename__ = 'agendas'
     
@@ -148,6 +202,7 @@ class AgendaParticipant(db.Model):
     
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
     agenda_id = db.Column(db.Integer, db.ForeignKey('agendas.id'), primary_key=True)
+## end of not used yet
 
 # Indexes
 db.Index('idx_attendance_user_date', 'user_id', 'attendance_date')

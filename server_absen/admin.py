@@ -3,7 +3,7 @@ from functools import wraps
 from flask_wtf.csrf import CSRFProtect
 from datetime import datetime
 import pytz
-from .models import db, Admin, User, AttendanceLocation, GenderType  # Import the Admin model
+from .models import db, Admin, User, AttendanceLocation, GenderType, Division  # Import the Admin model
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -63,6 +63,10 @@ def add_user():
         return render_template('admin/users/add.jinja', form_url=form_url, form=form)
     elif request.method == 'POST':
         if form.validate_on_submit():
+            division = Division.query.filter_by(name=form.division.data).first()
+            if not division:
+                error = "Division not found"
+                return render_template('admin/users/add.jinja', form_url=form_url, form=form, error=error)
             gt = GenderType.MALE
             if form.gender.data == 'P': 
                 gt = GenderType.FEMALE
@@ -71,7 +75,7 @@ def add_user():
                 username=form.username.data,
                 full_name=form.full_name.data,
                 gender=gt,
-                division=form.division.data
+                division=division.id,
             )
             new_user.set_password(form.password.data)
             try:

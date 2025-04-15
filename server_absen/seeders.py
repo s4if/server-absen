@@ -1,12 +1,17 @@
 from datetime import datetime, timedelta
-from .models import db, Admin, User, AttendanceLocation, Attendance, GenderType, AttendanceStatusType
+from .models import (
+    db, Admin, User, AttendanceLocation, Attendance, Division, GenderType, AttendanceStatusType,
+    AgendaTemplate, AgendaTemplateDivision
+)
 
 def seed_all():
     """Seed all tables with initial data"""
     seed_admin()
+    seed_divisions()
     seed_users()
     seed_attendance_locations()
     seed_attendances()
+    seed_agenda_templates()
     db.session.commit()
 
 def seed_admin():
@@ -19,38 +24,70 @@ def seed_admin():
         admin.set_password('admin123')  # You should change this in production
         db.session.add(admin)
 
+def seed_divisions():
+    """Seed divisions table with sample divisions"""
+    sample_divisions = [
+        {
+            'name': 'SMAIT',
+            'full_name': 'SMAIT Ihsanul Fikri',
+            'description': 'Sekolah Menengah Atas Islam Terpadu'
+        },
+        {
+            'name': 'SMPTI',
+            'full_name': 'SMPIT Ihsanul FIkri',
+            'description': 'Sekolah Menengah Pertama Terpadu Islam'
+        },
+        {
+            'name': 'Kebersihan',
+            'full_name': 'Divisi Kebersihan',
+            'description': 'Divisi Kebersihan'
+        }
+    ]
+
+    for division_data in sample_divisions:
+        if Division.query.filter_by(name=division_data['name']).first() is None:
+            division = Division(
+                name=division_data['name'],
+                full_name=division_data['full_name'],
+                description=division_data['description']
+            )
+            db.session.add(division)
+
 def seed_users():
     """Seed users table with sample users"""
     sample_users = [
         {
             'username': 'mrfu',
             'password': 'password123',
-            'division': 'SMA',
+            'division_name': 'SMAIT',
             'gender': GenderType.MALE,
             'full_name': 'Ahmad Fuad, S.Pd.'
         },
         {
-            'username':'ismail',
-            'password':'password123',
-            'division':'SMK',
+            'username': 'ismail',
+            'password': 'password123',
+            'division_name': 'SMKIT',
             'gender': GenderType.MALE,
-            'full_name':'Ismail, S.T.'
+            'full_name': 'Ismail, S.T.'
         },
         {
-            'username':'pamelri',
-            'password':'password123',
-            'division':'SMP',
+            'username': 'pamelri',
+            'password': 'password123',
+            'division_name': 'SMPTI',
             'gender': GenderType.MALE,
-            'full_name':'Pamel Riyadi, S.Pd.'
+            'full_name': 'Pamel Riyadi, S.Pd.'
         }
-        
     ]
 
     for user_data in sample_users:
         if User.query.filter_by(username=user_data['username']).first() is None:
+            division = Division.query.filter_by(name=user_data['division_name']).first()
+            if not division:
+                continue  # Skip if the division does not exist
+
             user = User(
                 username=user_data['username'],
-                division=user_data['division'],
+                division_id=division.id,
                 full_name=user_data['full_name'],
                 gender=user_data['gender']
             )
@@ -139,3 +176,85 @@ def seed_attendances():
             notes='Regular attendance'
         )
         db.session.add(attendance)
+        
+def seed_agenda_templates():
+    """Seed agenda_templates and agenda_template_divisions with sample data"""
+    import pytz
+    from datetime import time
+
+    # Sample agenda templates
+    sample_templates = [
+        {
+            'name': 'Apel Pagi SMAIT',
+            'description': 'Apel pagi rutin untuk SMAIT',
+            'type': 'routine',
+            'status': 'active',
+            'start_time': time(7, 0),
+            'end_time': time(7, 30),
+            'frequency': 1,
+            'division_names': ['SMAIT'],
+            'location_name': 'SMAIT Ihsanul Fikri',
+            'latitude': -7.58357159,
+            'longitude': 110.25037259,
+        },
+        {
+            'name': 'Apel Pagi SMPTI',
+            'description': 'Apel pagi rutin untuk SMPTI',
+            'type': 'routine',
+            'status': 'active',
+            'start_time': time(7, 0),
+            'end_time': time(7, 30),
+            'frequency': 1,
+            'division_names': ['SMPTI'],
+            'location_name': 'SMPIT Ihsanul Fikri',
+            'latitude': -7.58401892,
+            'longitude': 110.25155008,
+        },
+        {
+            'name': 'Rapat Divisi Kebersihan',
+            'description': 'Rapat mingguan divisi kebersihan',
+            'type': 'flexible-routine',
+            'status': 'active',
+            'start_time': time(13, 0),
+            'end_time': time(14, 0),
+            'frequency': 7,
+            'division_names': ['Kebersihan'],
+            'location_name': 'SMKIT Ihsanul Fikri',
+            'latitude': -7.56848324,
+            'longitude': 110.23970896,
+        }
+    ]
+
+    jakarta_tz = pytz.timezone('Asia/Jakarta')
+
+    for tmpl in sample_templates:
+        # Check if template already exists by name
+        if AgendaTemplate.query.filter_by(name=tmpl['name']).first() is not None:
+            continue
+
+        # Get division objects
+        divisions = []
+        for div_name in tmpl['division_names']:
+            div = Division.query.filter_by(name=div_name).first()
+            if div:
+                divisions.append(div)
+        if not divisions:
+            continue  # Skip if no valid division
+
+        agenda_template = AgendaTemplate(
+            name=tmpl['name'],
+            description=tmpl['description'],
+            type=tmpl['type'],
+            status=tmpl['status'],
+            start_time=tmpl['start_time'],
+            end_time=tmpl['end_time'],
+            frequency=tmpl['frequency'],
+            location_name=tmpl['location_name'],
+            latitude=tmpl['latitude'],
+            longitude=tmpl['longitude'],
+            created_at=datetime.now(jakarta_tz),
+            updated_at=datetime.now(jakarta_tz)
+        )
+        agenda_template.divisions = divisions
+        db.session.add(agenda_template)
+
