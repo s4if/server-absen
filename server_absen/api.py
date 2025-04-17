@@ -174,7 +174,7 @@ def log_self_reported_attendance():
     try:
         attendance_time = datetime.datetime.fromisoformat(data['attendance_time']).astimezone(JAKARTA_TZ)
     except (ValueError, TypeError):
-        return jsonify({'message': 'Invalid attendance_time format'}), 400
+        return jsonify({'message': 'Format waktu salah'}), 400
 
     # Validate coordinates
     try:
@@ -206,7 +206,7 @@ def log_self_reported_attendance():
             (latitude, longitude)
             ).meters
         if distance < 50:
-            return jsonify({'message': 'Self-reported attendance already exists for this location under 30 minutes ago'}), 400
+            jsonify({'message': 'Kehadiran mandiri sudah ada untuk lokasi ini dalam 30 menit terakhir'}), 400
 
     self_report = SelfReportedAttendance(
         user_id=user.id,
@@ -293,7 +293,7 @@ def edit_self_reported_attendance():
 
     self_report = SelfReportedAttendance.query.filter_by(id=data['id'], user_id=user.id).first()
     if not self_report:
-        return jsonify({'message': 'Self-reported attendance not found'}), 404
+        return jsonify({'message': 'Kehadiran mandiri tidak ditemukan'}), 404
 
     # User can only update ageda name, location_name and address
     self_report.agenda_name = data['agenda_name']
