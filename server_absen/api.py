@@ -41,20 +41,20 @@ def protected(func):
     def wrapper(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
         if not auth_header:
-            return jsonify({'message': 'Authorization header missing'}), 401
+            return jsonify({'message': 'Header otorisasi tidak ada'}), 401
             
         parts = auth_header.split()
         if len(parts) != 2 or parts[0].lower() != 'bearer':
-            return jsonify({'message': 'Invalid token format'}), 401
+            return jsonify({'message': 'Format token tidak valid'}), 401
 
         try:
             data = jwt.decode(parts[1], current_app.config['SECRET_KEY'], algorithms=['HS256'])
             g.user_data = data
             return func(*args, **kwargs)
         except jwt.ExpiredSignatureError:
-            return jsonify({'message': 'Token expired'}), 401
+            return jsonify({'message': 'Token kedaluwarsa'}), 401
         except jwt.InvalidTokenError:
-            return jsonify({'message': 'Invalid token'}), 401
+            return jsonify({'message': 'Token tidak valid'}), 401
 
     return wrapper
 
@@ -63,15 +63,15 @@ def login():
     data = request.get_json()
     required_fields = {'username', 'password', 'device_id'}
     if not required_fields.issubset(data):
-        return jsonify({'error': 'Missing credentials'}), 400
+        return jsonify({'error': 'Kredensial tidak lengkap'}), 400
 
     user = User.query.filter_by(username=data['username']).first()
     if not user or not user.check_password(data['password']):
-        return jsonify({'message': 'Invalid credentials'}), 401
+        return jsonify({'message': 'Kredensial tidak valid'}), 401
 
     token, refresh_time = generate_token(user, data['device_id'])
     if not token:
-        return jsonify({'message': 'User not found'}), 404
+        return jsonify({'message': 'Pengguna tidak ditemukan'}), 404
         
     return jsonify({'token': token, 'refresh_time': refresh_time}), 200
 
@@ -80,7 +80,7 @@ def login():
 def refresh_token():
     user = User.query.filter_by(username=g.user_data['username']).first()
     if not user or user.deleted_at:
-        return jsonify({'message': 'User not found'}), 404
+        return jsonify({'message': 'Pengguna tidak ditemukan'}), 404
 
     token, refresh_time = generate_token(user, g.user_data['device_id'])
     return jsonify({'token': token, 'refresh_time': refresh_time}), 200
@@ -90,7 +90,7 @@ def refresh_token():
 def dashboard_data():
     user = User.query.filter_by(username=g.user_data['username']).first()
     if not user:
-        return jsonify({'message': 'User not found'}), 404
+        return jsonify({'message': 'Pengguna tidak ditemukan'}), 404
     return jsonify({
         'message': f'Welcome {user.full_name}',
         'role': user.division
@@ -121,21 +121,21 @@ def daily_attendance():
     data = request.get_json()
 
     if not data or 'location_id' not in data or 'attendance_type' not in data or 'device_id' not in data:
-        return jsonify({'message': 'Missing required fields'}), 400
+        return jsonify({'message': 'Kolom yang diperlukan tidak ada'}), 400
 
     if data['device_id'] != g.user_data['device_id']:
-        return jsonify({'message': 'Invalid device ID'}), 403
+        return jsonify({'message': 'ID perangkat tidak valid'}), 403
 
     if data['attendance_type'] not in {'check_in', 'check_out'}:
-        return jsonify({'message': 'Invalid attendance type'}), 400
+        return jsonify({'message': 'Jenis kehadiran tidak valid'}), 400
 
     att_loc = AttendanceLocation.query.get(data['location_id'])
     if not att_loc:
-        return jsonify({'message': 'Invalid location'}), 400
+        return jsonify({'message': 'Lokasi tidak valid'}), 400
 
     user = User.query.filter_by(username=g.user_data['username']).first()
     if not user:
-        return jsonify({'message': 'User not found'}), 404
+        return jsonify({'message': 'Pengguna tidak ditemukan'}), 404
 
     now = datetime.datetime.now(JAKARTA_TZ)
     date = now.date()
@@ -143,7 +143,7 @@ def daily_attendance():
 
     if data['attendance_type'] == 'check_in':
         if attendance:
-            return jsonify({'message': 'Already checked in'}), 400
+            return jsonify({'message': 'Sudah check-in'}), 400
         attendance = Attendance(
             user_id=user.id,
             attendance_date=date,
@@ -152,15 +152,15 @@ def daily_attendance():
         )
         db.session.add(attendance)
         db.session.commit()
-        return jsonify({'message': 'Check in successful'}), 200
+        return jsonify({'message': 'Check-in berhasil'}), 200
 
     if not attendance:
-        return jsonify({'message': 'Not checked in yet'}), 400
+        return jsonify({'message': 'Belum check-in'}), 400
         
     attendance.check_out = now
     attendance.check_out_location_id = data['location_id']
     db.session.commit()
-    return jsonify({'message': 'Check out successful'}), 200
+    return jsonify({'message': 'Check-out berhasil'}), 200
 
 @bp.route('/self_reported_attendance', methods=['POST'])
 @protected
@@ -168,7 +168,7 @@ def log_self_reported_attendance():
     data = request.get_json()
     required_fields = {'agenda_name', 'location_name', 'address', 'attendance_time', 'longitude', 'latitude'}
     if not data or not required_fields.issubset(data.keys()):
-        return jsonify({'message': 'Missing required fields'}), 400
+        return jsonify({'message': 'Ada data yang kurang'}), 400
 
     # Parse attendance_time
     try:
@@ -181,16 +181,16 @@ def log_self_reported_attendance():
         latitude = float(data['latitude'])
         longitude = float(data['longitude'])
     except (ValueError, TypeError):
-        return jsonify({'message': 'Invalid latitude or longitude format'}), 400
+        return jsonify({'message': 'Format lintang atau bujur tidak valid'}), 400
     
 
     if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
-        return jsonify({'message': 'Latitude or longitude out of valid range'}), 400
+        return jsonify({'message': 'Lintang atau bujur di luar rentang yang valid'}), 400
 
     # Check if the user exists
     user = User.query.filter_by(username=g.user_data['username']).first()
     if not user:
-        return jsonify({'message': 'User not found'}), 404
+        return jsonify({'message': 'Pengguna tidak ditemukan'}), 404
     
     # Calculate the 30-minute window start time
     start_time = attendance_time - datetime.timedelta(minutes=30)
@@ -220,7 +220,7 @@ def log_self_reported_attendance():
     db.session.add(self_report)
     db.session.commit()
 
-    return jsonify({'message': 'Self-reported attendance logged successfully'}), 201
+    return jsonify({'message': 'Kehadiran mandiri berhasil dicatat'}), 201
 
 '''
 Example Request
@@ -244,7 +244,7 @@ Authorization: Bearer <token>
 def get_self_reported_attendance():
     user = User.query.filter_by(username=g.user_data['username']).first()
     if not user:
-        return jsonify({'message': 'User not found'}), 404
+        return jsonify({'message': 'Pengguna tidak ditemukan'}), 404
 
     self_reports = SelfReportedAttendance.query.filter_by(user_id=user.id).all()
     data = [{
@@ -264,20 +264,20 @@ def get_self_reported_attendance():
 def delete_self_reported_attendance():
     data = request.get_json()
     if not data or 'id' not in data:
-        return jsonify({'message': 'Missing required fields'}), 400
+        return jsonify({'message': 'Ada data yang kurang'}), 400
 
     user = User.query.filter_by(username=g.user_data['username']).first()
     if not user:
-        return jsonify({'message': 'User not found'}), 404
+        return jsonify({'message': 'Pengguna tidak ditemukan'}), 404
 
     self_report = SelfReportedAttendance.query.filter_by(id=data['id'], user_id=user.id).first()
     if not self_report:
-        return jsonify({'message': 'Self-reported attendance not found'}), 404
+        return jsonify({'message': 'Data kehadiran mandiri tidak ditemukan'}), 404
 
     db.session.delete(self_report)
     db.session.commit()
 
-    return jsonify({'message': 'Self-reported attendance deleted successfully'}), 200
+    return jsonify({'message': 'Kehadiran mandiri berhasil dihapus'}), 200
 
 @bp.route('/edit_self_reported_attendance', methods=['PUT'])
 @protected
@@ -285,11 +285,11 @@ def edit_self_reported_attendance():
     data = request.get_json()
     required_fields = {'id', 'agenda_name', 'location_name', 'address'}
     if not data or not required_fields.issubset(data.keys()):
-        return jsonify({'message': 'Missing required fields'}), 400
+        return jsonify({'message': 'Ada data yang kurang'}), 400
 
     user = User.query.filter_by(username=g.user_data['username']).first()
     if not user:
-        return jsonify({'message': 'User not found'}), 404
+        return jsonify({'message': 'Pengguna tidak ditemukan'}), 404
 
     self_report = SelfReportedAttendance.query.filter_by(id=data['id'], user_id=user.id).first()
     if not self_report:
@@ -301,4 +301,4 @@ def edit_self_reported_attendance():
     self_report.address = data.get('address')
     db.session.commit()
 
-    return jsonify({'message': 'Self-reported attendance updated successfully'}), 200
+    return jsonify({'message': 'Kehadiran mandiri berhasil diperbarui'}), 200
