@@ -293,7 +293,7 @@ def get_self_reported_attendance():
         'longitude': sr.longitude
     } for sr in self_reports]
 
-    return jsonify(data), 200
+    return jsonify({'data':data}), 200
 
 @bp.route('/delete_self_reported_attendance', methods=['DELETE'])
 @protected
