@@ -6,14 +6,19 @@ blinker==1.9.0
     # via flask
 click==8.1.8
     # via flask
+deprecated==1.2.18
+    # via limits
 flask==3.1.0
     # via
     #   server-absen (pyproject.toml)
     #   flask-htmx
+    #   flask-limiter
     #   flask-migrate
     #   flask-sqlalchemy
     #   flask-wtf
 flask-htmx==0.4.0
+    # via server-absen (pyproject.toml)
+flask-limiter==3.12
     # via server-absen (pyproject.toml)
 flask-migrate==4.1.0
     # via server-absen (pyproject.toml)
@@ -23,6 +28,10 @@ flask-sqlalchemy==3.1.1
     #   flask-migrate
 flask-wtf==1.2.2
     # via server-absen (pyproject.toml)
+geographiclib==2.0
+    # via geopy
+geopy==2.4.1
+    # via server-absen (pyproject.toml)
 greenlet==3.1.1
     # via sqlalchemy
 itsdangerous==2.2.0
@@ -31,16 +40,36 @@ itsdangerous==2.2.0
     #   flask-wtf
 jinja2==3.1.6
     # via flask
+limits==5.0.0
+    # via flask-limiter
 mako==1.3.9
     # via alembic
+markdown-it-py==3.0.0
+    # via rich
 markupsafe==3.0.2
     # via
     #   jinja2
     #   mako
     #   werkzeug
     #   wtforms
+mdurl==0.1.2
+    # via markdown-it-py
+ordered-set==4.1.0
+    # via flask-limiter
+packaging==24.2
+    # via limits
+psycopg2-binary==2.9.10
+    # via server-absen (pyproject.toml)
+pygments==2.19.1
+    # via rich
 pyjwt==2.10.1
     # via server-absen (pyproject.toml)
+python-dotenv==1.1.0
+    # via server-absen (pyproject.toml)
+pytz==2025.2
+    # via server-absen (pyproject.toml)
+rich==13.9.4
+    # via flask-limiter
 sqlalchemy==2.0.38
     # via
     #   alembic
@@ -48,8 +77,12 @@ sqlalchemy==2.0.38
 typing-extensions==4.12.2
     # via
     #   alembic
+    #   limits
     #   sqlalchemy
 werkzeug==3.1.3
     # via flask
+wrapt==1.17.2
+    # via deprecated
 wtforms==3.2.1
     # via flask-wtf
+Flask-Limiter

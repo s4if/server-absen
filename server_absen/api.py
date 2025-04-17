@@ -1,4 +1,6 @@
 from flask import Blueprint, request, jsonify, g, current_app
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from .models import SelfReportedAttendance
 from functools import wraps
 import jwt
@@ -8,6 +10,38 @@ import pytz
 from geopy.distance import geodesic
 
 bp = Blueprint('api', __name__, url_prefix='/api')
+
+# Initialize Flask-Limiter with whitelist for reverse proxy IP
+limiter = Limiter(
+    key_func=get_remote_address,  # Use the client's IP address as the key
+    default_limits=["100 per minute"],  # Default limit for all routes
+    storage_uri="memory://"  # In-memory storage for simplicity; use Redis in production
+)
+
+# Trusted reverse proxy IPs
+TRUSTED_PROXY_IPS = {"127.0.0.1", "192.168.1.1"}
+
+# Custom key function to extract the real client IP
+def get_real_ip():
+    # Check if the request comes through a trusted reverse proxy
+    remote_addr = get_remote_address()
+    if remote_addr in TRUSTED_PROXY_IPS:
+        # Extract the original client IP from the X-Forwarded-For header
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            # The first IP in the list is the original client IP
+            return forwarded_for.split(",")[0].strip()
+    # Fallback to the remote address if no trusted proxy is detected
+    return remote_addr
+
+# Set the custom key function for Flask-Limiter
+limiter.key_func = get_real_ip
+
+# Whitelist reverse proxy IPs
+@limiter.request_filter
+def whitelist_reverse_proxy():
+    return get_remote_address() in TRUSTED_PROXY_IPS
+
 
 JAKARTA_TZ = pytz.timezone('Asia/Jakarta')
 
@@ -59,6 +93,7 @@ def protected(func):
     return wrapper
 
 @bp.route('/login', methods=['POST'])
+@limiter.limit("10 per minute")  # Limit to 5 requests per minute for login
 def login():
     data = request.get_json()
     required_fields = {'username', 'password', 'device_id'}
@@ -195,6 +230,7 @@ def log_self_reported_attendance():
     # Calculate the 30-minute window start time
     start_time = attendance_time - datetime.timedelta(minutes=30)
 
+    # doesn't work on httpie, maybe because the time is static?
     prev_self_report = SelfReportedAttendance.query.filter(
         SelfReportedAttendance.user_id == user.id,
         SelfReportedAttendance.attendance_time >= start_time,
