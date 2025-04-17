@@ -1,7 +1,8 @@
+import random
 from datetime import datetime, timedelta
 from .models import (
     db, Admin, User, AttendanceLocation, Attendance, Division, GenderType, AttendanceStatusType,
-    AgendaTemplate, AgendaTemplateDivision
+    AgendaTemplate, AgendaTemplateDivision, SelfReportedAttendance
 )
 
 def seed_all():
@@ -12,6 +13,7 @@ def seed_all():
     seed_attendance_locations()
     seed_attendances()
     seed_agenda_templates()
+    seed_self_reported_attendances()
     db.session.commit()
 
 def seed_admin():
@@ -258,3 +260,31 @@ def seed_agenda_templates():
         agenda_template.divisions = divisions
         db.session.add(agenda_template)
 
+
+def seed_self_reported_attendances():
+    """Seed self_reported_attendances table with sample data"""
+    import pytz
+    from datetime import datetime, timedelta
+
+    jakarta_tz = pytz.timezone('Asia/Jakarta')
+    users = User.query.all()
+    if not users:
+        return  # No users to create self-reported attendances for
+
+    sample_agenda_names = ['Meeting', 'Training', 'Workshop', 'Seminar']
+    sample_location_names = ['Conference Room', 'Training Room', 'Main Hall', 'Auditorium']
+
+    for user in users:
+        # Create 5 self-reported attendances for each user
+        for i in range(5):
+            attendance_time = datetime.now(jakarta_tz) - timedelta(days=i)
+            self_reported_attendance = SelfReportedAttendance(
+                user_id=user.id,
+                attendance_time=attendance_time,
+                agenda_name=f"{random.choice(sample_agenda_names)} {i+1}",
+                location_name=random.choice(sample_location_names),
+                address=f"Address {i+1}",
+                latitude=-7.5 + (i * 0.1),
+                longitude=110.2 + (i * 0.1)
+            )
+            db.session.add(self_reported_attendance)
