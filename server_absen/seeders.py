@@ -2,7 +2,7 @@ import random
 from datetime import datetime, timedelta
 from .models import (
     db, Admin, User, AttendanceLocation, Attendance, Division, GenderType, AttendanceStatusType,
-    AgendaTemplate, AgendaTemplateDivision, SelfReportedAttendance
+    AgendaTemplate, SelfReportedAttendance
 )
 
 def seed_all():
@@ -37,7 +37,12 @@ def seed_divisions():
         {
             'name': 'SMPTI',
             'full_name': 'SMPIT Ihsanul FIkri',
-            'description': 'Sekolah Menengah Pertama Terpadu Islam'
+            'description': 'Sekolah Menengah Pertama Islam Terpadu'
+        },
+        {
+            'name': 'SMKIT',
+            'full_name': 'SMKIT Ihsanul FIkri',
+            'description': 'Sekolah Menengah Kejuruan Islam Terpadu'
         },
         {
             'name': 'Kebersihan',

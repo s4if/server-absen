@@ -295,6 +295,29 @@ def get_self_reported_attendance():
 
     return jsonify({'data':data}), 200
 
+@bp.route('/get_self_reported_attendance/<int:id>', methods=['GET'])
+@protected
+def get_self_reported_attendance_by_id(id):
+    user = User.query.filter_by(username=g.user_data['username']).first()
+    if not user:
+        return jsonify({'message': 'Pengguna tidak ditemukan'}), 404
+
+    self_report = SelfReportedAttendance.query.filter_by(id=id, user_id=user.id).first()
+    if not self_report:
+        return jsonify({'message': 'Data kehadiran mandiri tidak ditemukan'}), 404
+
+    data = {
+        'id': self_report.id,
+        'attendance_time': self_report.attendance_time.isoformat(),
+        'agenda_name': self_report.agenda_name,
+        'location_name': self_report.location_name,
+        'address': self_report.address,
+        'latitude': self_report.latitude,
+        'longitude': self_report.longitude
+    }
+
+    return jsonify({'data':data}), 200
+
 @bp.route('/delete_self_reported_attendance', methods=['DELETE'])
 @protected
 def delete_self_reported_attendance():
