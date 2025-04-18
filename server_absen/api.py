@@ -282,7 +282,7 @@ def get_self_reported_attendance():
     if not user:
         return jsonify({'message': 'Pengguna tidak ditemukan'}), 404
 
-    self_reports = SelfReportedAttendance.query.filter_by(user_id=user.id).all()
+    self_reports = SelfReportedAttendance.query.filter_by(user_id=user.id).order_by(SelfReportedAttendance.attendance_time.desc()).all()
     data = [{
         'id': sr.id,
         'attendance_time': sr.attendance_time.isoformat(),
