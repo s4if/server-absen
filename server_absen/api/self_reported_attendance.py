@@ -7,10 +7,10 @@ import pytz
 
 JAKARTA_TZ = pytz.timezone('Asia/Jakarta')
 
-self_reported_attendance_bp = Blueprint('self_reported_attendance', __name__, url_prefix='/self_reported')
+sra_bp = Blueprint('self_reported_attendance', __name__, url_prefix='/self_reported')
 
 
-@self_reported_attendance_bp.route('/attendance', methods=['POST'])
+@sra_bp.route('/attendance', methods=['POST'])
 @protected
 def log_self_reported_attendance():
     data = request.get_json()
@@ -64,7 +64,7 @@ def log_self_reported_attendance():
 
     return jsonify({'message': 'Kehadiran mandiri berhasil dicatat'}), 201
 
-@self_reported_attendance_bp.route('/attendance', methods=['GET'])
+@sra_bp.route('/attendance', methods=['GET'])
 @protected
 def get_self_reported_attendance():
     user = User.query.filter_by(username=g.user_data['username']).first()
@@ -84,7 +84,7 @@ def get_self_reported_attendance():
 
     return jsonify({'data': data}), 200
 
-@self_reported_attendance_bp.route('/attendance/<int:id>', methods=['GET'])
+@sra_bp.route('/attendance/<int:id>', methods=['GET'])
 @protected
 def get_self_reported_attendance_by_id(id):
     user = User.query.filter_by(username=g.user_data['username']).first()
@@ -107,7 +107,7 @@ def get_self_reported_attendance_by_id(id):
 
     return jsonify({'data': data}), 200
 
-@self_reported_attendance_bp.route('/attendance', methods=['DELETE'])
+@sra_bp.route('/attendance', methods=['DELETE'])
 @protected
 def delete_self_reported_attendance():
     data = request.get_json()
@@ -127,7 +127,7 @@ def delete_self_reported_attendance():
 
     return jsonify({'message': 'Kehadiran mandiri berhasil dihapus'}), 200
 
-@self_reported_attendance_bp.route('/attendance', methods=['PUT'])
+@sra_bp.route('/attendance', methods=['PUT'])
 @protected
 def edit_self_reported_attendance():
     data = request.get_json()

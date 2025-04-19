@@ -7,10 +7,10 @@ import datetime
 from ..models import AttendanceLocation, User, Attendance, db
 import pytz
 
-from .self_reported_attendance import self_reported_attendance_bp
+from .self_reported_attendance import sra_bp
 
 bp = Blueprint('api', __name__, url_prefix='/api')
-bp.register_blueprint(self_reported_attendance_bp)
+bp.register_blueprint(sra_bp)
 
 # Initialize Flask-Limiter with whitelist for reverse proxy IP
 limiter = Limiter(
